@@ -4,6 +4,7 @@ from __future__ import print_function
 
 __author__ = "bibow"
 
+import re
 from datetime import datetime, timedelta
 from pytz import timezone
 from .soapadaptor import SOAPAdaptor
@@ -174,6 +175,7 @@ class SOAPConnector(object):
         SearchStringCustomField = self.get_data_type("ns0:SearchStringCustomField")
         SearchCustomFieldList = self.get_data_type("ns0:SearchCustomFieldList")
         SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
+        SearchTextNumberField = self.get_data_type("ns0:SearchTextNumberField")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
         if field.find("cust") == 0:
@@ -184,6 +186,10 @@ class SOAPConnector(object):
             ]
             params = {
                 "customFieldList": SearchCustomFieldList(customField=custom_fields)
+            }
+        elif field == "otherRefNum":
+            params = {
+                field: SearchTextNumberField(searchValue=value, operator="equalTo")
             }
         elif isinstance(value, list):
             params = {
@@ -276,11 +282,7 @@ class SOAPConnector(object):
                         )
                     )
             else:
-                if type(value) == str:
-                    custom_fields.append(
-                        StringCustomFieldRef(scriptId=script_id, value=value[:4000])
-                    )
-                elif type(value) == bool:
+                if type(value) == bool:
                     custom_fields.append(
                         BooleanCustomFieldRef(scriptId=script_id, value=value)
                     )
@@ -288,6 +290,24 @@ class SOAPConnector(object):
                     custom_fields.append(
                         DateCustomFieldRef(scriptId=script_id, value=value)
                     )
+                else:
+                    datetime_format = "%m/%d/%Y %H:%M:%S"
+                    datetime_format_regex = re.compile(
+                        r"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}$"
+                    )
+                    value = str(value)
+
+                    if datetime_format_regex.match(value):
+                        custom_fields.append(
+                            DateCustomFieldRef(
+                                scriptId=script_id,
+                                value=datetime.strptime(value, datetime_format),
+                            )
+                        )
+                    else:
+                        custom_fields.append(
+                            StringCustomFieldRef(scriptId=script_id, value=value[:4000])
+                        )
         return custom_fields
 
     def get_address(self, address, addresses=[]):
@@ -557,7 +577,11 @@ class SOAPConnector(object):
                     transaction.update({key: RecordRef(internalId=id)})
 
         # Replace the term with the customer term.
-        if customer.terms and transaction.get("terms") is None:
+        if (
+            customer.terms
+            and transaction.get("terms") is None
+            and record_type in ["salesOrder", "estimate"]
+        ):
             transaction.update({"terms": customer.terms})
 
         # Items
@@ -679,18 +703,20 @@ class SOAPConnector(object):
         )
 
         # Billing Address
-        billingAddress = self.get_address(
-            transaction.get("billingAddress"),
-            addresses=customer.addressbookList.addressbook,
-        )
-        transaction.update({"billingAddress": billingAddress})
+        if transaction.get("billingAddress"):
+            billingAddress = self.get_address(
+                transaction.get("billingAddress"),
+                addresses=customer.addressbookList.addressbook,
+            )
+            transaction.update({"billingAddress": billingAddress})
 
         # Shipping Address
-        shippingAddress = self.get_address(
-            transaction.get("shippingAddress"),
-            addresses=customer.addressbookList.addressbook,
-        )
-        transaction.update({"shippingAddress": shippingAddress})
+        if transaction.get("shippingAddress"):
+            shippingAddress = self.get_address(
+                transaction.get("shippingAddress"),
+                addresses=customer.addressbookList.addressbook,
+            )
+            transaction.update({"shippingAddress": shippingAddress})
 
         # Check if shipDate, tranData is None or not.
         current = datetime.now(tz=timezone(self.setting.get("TIMEZONE", "UTC")))
@@ -729,9 +755,12 @@ class SOAPConnector(object):
         self.logger.info(transaction)
 
         record_lookup = self.lookup_record_fields.get(record_type)
+        record_lookup_value = transaction.get(record_lookup["field"])
+        if record_lookup_value is None:
+            record_lookup_value = _custom_fields.get(record_lookup["field"])
         record = self.get_record_by_variables(
             record_type,
-            **{record_lookup["field"]: _custom_fields.get(record_lookup["field"])},
+            **{record_lookup["field"]: record_lookup_value},
         )
 
         Transaction = self.get_data_type(self.transaction_data_type.get(record_type))
@@ -821,6 +850,8 @@ class SOAPConnector(object):
         person.update({"isPerson": person.get("isPerson", True)})
         if person.get("nsCustomerId"):
             person.update({"entityId": person.pop("nsCustomerId")})
+        if person.get("extCustomerId"):
+            person.update({"externalId": person.pop("extCustomerId")})
 
         # Lookup addressbook.
         addressbook = [
@@ -858,6 +889,11 @@ class SOAPConnector(object):
             )
 
             if record:
+                if person.get("entityId"):
+                    person.pop("entityId")
+                if person.get("subsidiary"):
+                    person.pop("subsidiary")
+                
                 person.update({"internalId": record.internalId})
                 self.update(Person(**person))
                 return record.internalId
@@ -1218,7 +1254,10 @@ class SOAPConnector(object):
         items = []
         records = self.search(search_record, search_preferences=search_preferences)
         if records:
-            if record_type in ["inventory", "inventoryLot"] and last_qty_available_change:
+            if (
+                record_type in ["inventory", "inventoryLot"]
+                and last_qty_available_change
+            ):
                 self.get_last_qty_available_change_for_items(records)
             records = sorted(records, key=lambda x: x["lastModifiedDate"], reverse=True)
             while len(records) > 0:
