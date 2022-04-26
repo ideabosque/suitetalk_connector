@@ -1356,7 +1356,7 @@ class SOAPConnector(object):
                 )
             )
             records.extend(
-                self.search(search_record, searchPreferences=search_preferences)
+                self.search(search_record, search_preferences=search_preferences)
             )
 
         return {record.internalId: record for record in records}
