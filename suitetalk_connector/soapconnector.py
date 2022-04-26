@@ -1388,7 +1388,7 @@ class SOAPConnector(object):
         limit = kwargs.get("limit", 100)
         hours = kwargs.get("hours", 0)
         vendor_id = kwargs.get("vendorId")
-        item_detail = kwargs.get("itemDetail", False)
+        item_detail = kwargs.get("item_detail", False)
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
         begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S") + timedelta(seconds=1)
