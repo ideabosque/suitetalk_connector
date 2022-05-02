@@ -588,9 +588,9 @@ class SOAPConnector(object):
         message = None
         transaction_items = []
 
-        priceLevel = None
+        pricelevel = None
         if transaction.get("priceLevel"):
-            priceLevel = self.get_record_by_variables(
+            pricelevel = self.get_record_by_variables(
                 "priceLevel", **{"name": transaction.pop("priceLevel")}
             )
         for _item in transaction.pop("items"):
@@ -607,11 +607,11 @@ class SOAPConnector(object):
 
                 # Calculate item price level or customized price.
                 difference = -1
-                if priceLevel is not None and item.pricingMatrix is not None:
+                if pricelevel is not None and item.pricingMatrix is not None:
                     _prices = list(
                         filter(
                             lambda p: (
-                                p["priceLevel"]["internalId"] == priceLevel.internalId
+                                p["priceLevel"]["internalId"] == pricelevel.internalId
                             ),
                             item.pricingMatrix.pricing,
                         )
@@ -635,7 +635,7 @@ class SOAPConnector(object):
 
                     if difference == 0:
                         transaction_item.price = RecordRef(
-                            internalId=priceLevel.internalId
+                            internalId=pricelevel.internalId
                         )
 
                 if difference != 0 and _item.get("price") is not None:
