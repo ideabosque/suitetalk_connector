@@ -141,7 +141,7 @@ class SOAPConnector(object):
         )
         records = self.search(search_record, search_preferences=search_preferences)
         if records is not None:
-            return records[0]
+            return records[-1]
         return None
 
     def get_custom_record(self, rec_type_id, field, value):
@@ -160,7 +160,7 @@ class SOAPConnector(object):
         )
         records = self.search(search_record, search_preferences=search_preferences)
         if records is not None:
-            return records[0]
+            return records[-1]
         return None
 
     def get_records_by_lookup(
@@ -223,7 +223,7 @@ class SOAPConnector(object):
             record_type, search_data_type, field, value, operator=operator
         )
         if records:
-            return records[0]
+            return records[-1]
         return None
 
     def get_record_by_variables(self, record_type, **kwargs):
@@ -668,13 +668,19 @@ class SOAPConnector(object):
                 if lot_no_locs:
                     inventory_assignments = []
                     for lot_no_loc in lot_no_locs:
-                        inventory_number = self.get_record_by_variables(
-                            "inventoryNumber",
-                            **{"inventoryNumber": lot_no_loc["lot_no"]},
+                        records = self.get_inventory_numbers(
+                            **{"inventory_number": lot_no_loc["lot_no"]}
                         )
-                        if inventory_number is None:
+                        if records is None:
                             continue
 
+                        _records = list(
+                            filter(lambda x: x["status"] == "Available", records)
+                        )
+                        if len(_records) == 0:
+                            continue
+
+                        inventory_number = _records[-1]
                         inventory_assignment = InventoryAssignment(
                             issueInventoryNumber=RecordRef(
                                 internalId=inventory_number.internalId
@@ -895,7 +901,7 @@ class SOAPConnector(object):
                     person.pop("entityId")
                 if person.get("subsidiary"):
                     person.pop("subsidiary")
-                
+
                 person.update({"internalId": record.internalId})
                 self.update(Person(**person))
                 return record.internalId
