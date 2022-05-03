@@ -178,7 +178,9 @@ class SOAPConnector(object):
         SearchTextNumberField = self.get_data_type("ns0:SearchTextNumberField")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        if field.find("cust") == 0:
+        if field is None and value is None and operator is None:
+            params = {}
+        elif field.find("cust") == 0:
             custom_fields = [
                 SearchStringCustomField(
                     scriptId=field, searchValue=value, operator="is"
