@@ -1315,8 +1315,8 @@ class SOAPConnector(object):
     def join_entity(self, entity_type, record, value, entities):
         record[entity_type] = []
         for entity in entities:
+            line = {"customFieldList": {"customField": []}}
             for field in value["base"]:
-                line = {"customFieldList": {"customField": []}}
                 cols = field.split("|")
                 # Retrieve a custom field from the base level.
                 if cols[0] == "@":
@@ -1329,7 +1329,7 @@ class SOAPConnector(object):
                     line["customFieldList"]["customField"].extend(custom_fields)
                     continue
                 line[cols[0]] = entity[cols[1]]
-                record[entity_type].append(line)
+            record[entity_type].append(line)
 
         for item in record.itemList.item:
             for entity in entities:
