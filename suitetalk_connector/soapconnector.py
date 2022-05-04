@@ -1312,20 +1312,24 @@ class SOAPConnector(object):
             return records
         return []
 
-    def join_entity(self, record, value, entities):
-        for field in value["base"]:
-            cols = field.split("|")
-            # Retrieve a custom field from the base level.
-            if cols[0] == "@":
-                customFields = list(
-                    filter(
-                        lambda i: i["scriptId"] == cols[1],
-                        entities[0]["customFieldList"]["customField"],
+    def join_entity(self, entity_type, record, value, entities):
+        record[entity_type] = []
+        for entity in entities:
+            for field in value["base"]:
+                line = {"customFieldList": {"customField": []}}
+                cols = field.split("|")
+                # Retrieve a custom field from the base level.
+                if cols[0] == "@":
+                    custom_fields = list(
+                        filter(
+                            lambda i: i["scriptId"] == cols[1],
+                            entity["customFieldList"]["customField"],
+                        )
                     )
-                )
-                record["customFieldList"]["customField"].extend(customFields)
-                continue
-            record[cols[0]] = entities[0][cols[1]]
+                    line["customFieldList"]["customField"].extend(custom_fields)
+                    continue
+                line[cols[0]] = entity[cols[1]]
+                record[entity_type].append(line)
 
         for item in record.itemList.item:
             for entity in entities:
@@ -1456,7 +1460,7 @@ class SOAPConnector(object):
                             },
                         )
                         if entities:
-                            self.join_entity(record, value, entities)
+                            self.join_entity(entity_type, record, value, entities)
 
                 transactions.append(record)
 
