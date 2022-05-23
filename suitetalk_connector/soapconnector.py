@@ -1500,6 +1500,8 @@ class SOAPConnector(object):
             SearchAdvanced = self.get_data_type("ns17:ItemSearchAdvanced")
             Search = self.get_data_type("ns17:ItemSearch")
             SearchBasic = self.get_data_type("ns5:ItemSearchBasic")
+        else:
+            raise Exception(f"entity_type ({entity_type}) is not supported!!!")
 
         search_basic = None
         if kwargs.get("cut_date") and kwargs.get("hours"):
