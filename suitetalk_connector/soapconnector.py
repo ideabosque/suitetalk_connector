@@ -1199,7 +1199,7 @@ class SOAPConnector(object):
             ),
         )
         rows = self.search(search_record, advance=True)
-        if len(rows) > 0:
+        if rows and len(rows) > 0:
             return rows[0].basic.lastQuantityAvailableChange[0].searchValue
         return None
 
