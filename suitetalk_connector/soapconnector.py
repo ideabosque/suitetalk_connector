@@ -1056,11 +1056,14 @@ class SOAPConnector(object):
         SearchDateField = self.get_data_type("ns0:SearchDateField")
         record_lookup = self.lookup_record_fields.get(record_type)
         RecordSearchBasic = self.get_data_type(record_lookup["search_data_type"])
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
         limit = kwargs.get("limit", 100)
         hours = kwargs.get("hours", 0)
+        subsidiary = kwargs.get("subsidiary")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
         begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S") + timedelta(seconds=1)
@@ -1077,6 +1080,17 @@ class SOAPConnector(object):
                 searchValue=begin, searchValue2=end, operator="within"
             ),
         )
+        if subsidiary:
+            record = self.get_record_by_variables(
+                "subsidiary",
+                **{
+                    self.lookup_record_fields["subsidiary"]["field"]: subsidiary,
+                },
+            )
+            record_ref = RecordRef(internalId=record.internalId)
+            search_record.subsidiary = SearchMultiSelectField(
+                searchValue=[record_ref], operator="anyOf"
+            )
         self.logger.info(f"Begin: {begin.strftime('%Y-%m-%d %H:%M:%S')}")
         self.logger.info(f"End: {end.strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -1212,6 +1226,8 @@ class SOAPConnector(object):
         SearchDateField = self.get_data_type("ns0:SearchDateField")
         SearchStringField = self.get_data_type("ns0:SearchStringField")
         SearchBooleanField = self.get_data_type("ns0:SearchBooleanField")
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
@@ -1227,6 +1243,7 @@ class SOAPConnector(object):
             ],
         )
         vendor_name = kwargs.get("vendor_name")
+        subsidiary = kwargs.get("subsidiary")
         active_only = kwargs.get("active_only", False)
         last_qty_available_change = kwargs.get("last_qty_available_change", True)
 
@@ -1253,6 +1270,17 @@ class SOAPConnector(object):
         if vendor_name:
             search_record.vendorName = SearchStringField(
                 searchValue=vendor_name, operator="is"
+            )
+        if subsidiary:
+            record = self.get_record_by_variables(
+                "subsidiary",
+                **{
+                    self.lookup_record_fields["subsidiary"]["field"]: subsidiary,
+                },
+            )
+            record_ref = RecordRef(internalId=record.internalId)
+            search_record.subsidiary = SearchMultiSelectField(
+                searchValue=[record_ref], operator="anyOf"
             )
         if active_only:
             search_record.isInactive = SearchBooleanField(searchValue=False)
@@ -1399,7 +1427,8 @@ class SOAPConnector(object):
         end_date = kwargs.get("end_date")
         limit = kwargs.get("limit", 100)
         hours = kwargs.get("hours", 0)
-        vendor_id = kwargs.get("vendorId")
+        vendor_id = kwargs.get("vendor_id")
+        subsidiary = kwargs.get("subsidiary")
         item_detail = kwargs.get("item_detail", False)
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
@@ -1426,6 +1455,18 @@ class SOAPConnector(object):
         if vendor_id:
             record_ref = RecordRef(internalId=vendor_id)
             search_record.entity = SearchMultiSelectField(
+                searchValue=[record_ref], operator="anyOf"
+            )
+
+        if subsidiary:
+            record = self.get_record_by_variables(
+                "subsidiary",
+                **{
+                    self.lookup_record_fields["subsidiary"]["field"]: subsidiary,
+                },
+            )
+            record_ref = RecordRef(internalId=record.internalId)
+            search_record.subsidiary = SearchMultiSelectField(
                 searchValue=[record_ref], operator="anyOf"
             )
 
