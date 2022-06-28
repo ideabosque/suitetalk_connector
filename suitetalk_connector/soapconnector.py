@@ -9,6 +9,9 @@ from datetime import datetime, timedelta
 from pytz import timezone
 from .soapadaptor import SOAPAdaptor
 
+datetime_format = "%m/%d/%Y %H:%M:%S"
+datetime_format_regex = re.compile(r"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}$")
+
 
 class SOAPConnector(object):
     def __init__(self, logger, **setting):
@@ -293,10 +296,6 @@ class SOAPConnector(object):
                         DateCustomFieldRef(scriptId=script_id, value=value)
                     )
                 else:
-                    datetime_format = "%m/%d/%Y %H:%M:%S"
-                    datetime_format_regex = re.compile(
-                        r"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}$"
-                    )
                     value = str(value)
 
                     if datetime_format_regex.match(value):
@@ -311,6 +310,80 @@ class SOAPConnector(object):
                             StringCustomFieldRef(scriptId=script_id, value=value[:4000])
                         )
         return custom_fields
+
+    def get_search_custom_fields(self, custom_fields, record_type):
+        SearchStringCustomField = self.get_data_type("ns0:SearchStringCustomField")
+        SearchBooleanCustomField = self.get_data_type("ns0:SearchBooleanCustomField")
+        SearchDateCustomField = self.get_data_type("ns0:SearchDateCustomField")
+        SearchMultiSelectCustomField = self.get_data_type(
+            "ns0:SearchMultiSelectCustomField"
+        )
+        ListOrRecordRef = self.get_data_type("ns0:ListOrRecordRef")
+        search_custom_fields = []
+        if custom_fields is None:
+            return search_custom_fields
+
+        for script_id, value in custom_fields.items():
+            if script_id in self.lookup_select_values.keys():
+                search_custom_fields.append(
+                    SearchMultiSelectCustomField(
+                        scriptId=script_id,
+                        searchValue=[
+                            ListOrRecordRef(
+                                internalId=self.get_select_value_id(
+                                    i,
+                                    script_id,
+                                    record_type,
+                                )
+                            )
+                            for i in value
+                        ],
+                        operator="anyOf",
+                    )
+                )
+            else:
+                if type(value) == bool:
+                    search_custom_fields.append(
+                        SearchBooleanCustomField(scriptId=script_id, searchValue=value)
+                    )
+                elif (
+                    type(value) is list
+                    and type(value[0])
+                    and type(value[1]) == datetime
+                ):
+                    search_custom_fields.append(
+                        SearchDateCustomField(
+                            scriptId=script_id,
+                            searchValue=value[0],
+                            searchValue2=value[1],
+                            operator="within",
+                        )
+                    )
+                else:
+                    if (
+                        type(value) is list
+                        and datetime_format_regex.match(value[0])
+                        and datetime_format_regex.match(value[1])
+                    ):
+                        search_custom_fields.append(
+                            SearchDateCustomField(
+                                scriptId=script_id,
+                                searchValue=datetime.strptime(
+                                    value[0], datetime_format
+                                ),
+                                searchValue2=datetime.strptime(
+                                    value[1], datetime_format
+                                ),
+                                operator="within",
+                            )
+                        )
+                    else:
+                        search_custom_fields.append(
+                            SearchStringCustomField(
+                                scriptId=script_id, searchValue=value, operator="is"
+                            )
+                        )
+        return search_custom_fields
 
     def get_address(self, address, addresses=[]):
         Address = self.get_data_type("ns5:Address")
@@ -1228,6 +1301,7 @@ class SOAPConnector(object):
         SearchBooleanField = self.get_data_type("ns0:SearchBooleanField")
         RecordRef = self.get_data_type("ns0:RecordRef")
         SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
+        SearchCustomFieldList = self.get_data_type("ns0:SearchCustomFieldList")
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
@@ -1246,6 +1320,7 @@ class SOAPConnector(object):
         subsidiary = kwargs.get("subsidiary")
         active_only = kwargs.get("active_only", False)
         last_qty_available_change = kwargs.get("last_qty_available_change", True)
+        custom_fields = kwargs.get("custom_fields")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
         begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S") + timedelta(seconds=1)
@@ -1284,6 +1359,15 @@ class SOAPConnector(object):
             )
         if active_only:
             search_record.isInactive = SearchBooleanField(searchValue=False)
+
+        if custom_fields:
+            search_custom_fields = self.get_search_custom_fields(
+                custom_fields, item_types[0]
+            )
+            search_record.customFieldList = SearchCustomFieldList(
+                customField=search_custom_fields
+            )
+
         self.logger.info(f"Begin: {begin.strftime('%Y-%m-%d %H:%M:%S')}")
         self.logger.info(f"End: {end.strftime('%Y-%m-%d %H:%M:%S')}")
 
