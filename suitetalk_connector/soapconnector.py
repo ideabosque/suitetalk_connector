@@ -582,6 +582,7 @@ class SOAPConnector(object):
 
         self.logger.info(transaction)
         payment_method = transaction.get("paymentMethod")
+        notes = transaction.get("notes")
 
         # Get/Create the customer.
         extCustomerId = transaction.pop("extCustomerId", None)
@@ -885,12 +886,12 @@ class SOAPConnector(object):
                     self.add(CustomerDeposit(**customer_deposit))
 
         # Add notes.
-        if transaction.get("notes"):
+        if notes:
             Note = self.get_data_type("ns9:Note")
             for note in list(
                 filter(
                     lambda x: x["memo"] is not None and x["memo"] != "",
-                    transaction.get("notes"),
+                    notes,
                 )
             ):
                 self.add(
