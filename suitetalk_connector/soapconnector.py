@@ -1140,7 +1140,7 @@ class SOAPConnector(object):
         subsidiary = kwargs.get("subsidiary")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S") + timedelta(seconds=1)
+        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S")
         if hours == 0:
             end = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S")
         else:
@@ -1324,7 +1324,7 @@ class SOAPConnector(object):
         custom_fields = kwargs.get("custom_fields")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S") + timedelta(seconds=1)
+        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S")
         if hours == 0:
             end = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S")
         else:
@@ -1517,7 +1517,7 @@ class SOAPConnector(object):
         item_detail = kwargs.get("item_detail", False)
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S") + timedelta(seconds=1)
+        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S")
         if hours == 0:
             end = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S")
         else:
@@ -1631,9 +1631,7 @@ class SOAPConnector(object):
 
         search_basic = None
         if kwargs.get("cut_date") and kwargs.get("hours"):
-            begin = datetime.strptime(
-                kwargs.get("cut_date"), "%Y-%m-%d %H:%M:%S"
-            ) + timedelta(seconds=1)
+            begin = datetime.strptime(kwargs.get("cut_date"), "%Y-%m-%d %H:%M:%S")
             if kwargs.get("hours") == 0:
                 end = datetime.now(tz=timezone(self.setting.get("TIMEZONE", "UTC")))
             else:
