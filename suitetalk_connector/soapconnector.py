@@ -1515,6 +1515,7 @@ class SOAPConnector(object):
         vendor_id = kwargs.get("vendor_id")
         subsidiary = kwargs.get("subsidiary")
         item_detail = kwargs.get("item_detail", False)
+        inventory_detail = kwargs.get("inventory_detail", False)
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
         begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S")
@@ -1575,6 +1576,11 @@ class SOAPConnector(object):
                     "returnAuthorization",
                 ]:
                     self.update_line_items(record)
+
+                if inventory_detail and record_type in ["purchaseOrder"]:
+                    record.itemList = self.get_record(
+                        record_type, record.internalId
+                    ).itemList
 
                 for entity_type, value in self.lookup_join_fields.items():
                     if record_type in value["created_from_types"]:
