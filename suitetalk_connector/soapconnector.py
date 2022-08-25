@@ -1577,7 +1577,7 @@ class SOAPConnector(object):
                 ]:
                     self.update_line_items(record)
 
-                if inventory_detail and record_type in ["purchaseOrder"]:
+                if inventory_detail and record_type in ["purchaseOrder", "itemReceipt"]:
                     record.itemList = self.get_record(
                         record_type, record.internalId
                     ).itemList
