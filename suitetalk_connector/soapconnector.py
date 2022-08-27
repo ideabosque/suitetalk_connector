@@ -1291,6 +1291,52 @@ class SOAPConnector(object):
             return rows[0].basic.lastQuantityAvailableChange[0].searchValue
         return None
 
+    def get_inventory_detail(self, record_type, internal_id):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        TransactionSearchAdvanced = self.get_data_type("ns19:TransactionSearchAdvanced")
+        TransactionSearchRow = self.get_data_type("ns19:TransactionSearchRow")
+        InventoryDetailSearchRowBasic = self.get_data_type(
+            "ns5:InventoryDetailSearchRowBasic"
+        )
+        TransactionSearch = self.get_data_type("ns19:TransactionSearch")
+        TransactionSearchBasic = self.get_data_type("ns5:TransactionSearchBasic")
+        SearchColumnSelectField = self.get_data_type("ns0:SearchColumnSelectField")
+        SearchColumnDoubleField = self.get_data_type("ns0:SearchColumnDoubleField")
+        SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
+        SearchStringField = self.get_data_type("ns0:SearchStringField")
+
+        search_record = TransactionSearchAdvanced(
+            columns=TransactionSearchRow(
+                inventoryDetailJoin=InventoryDetailSearchRowBasic(
+                    binNumber=SearchColumnSelectField(
+                        customLabel="Bin Number"
+                    ),
+                    inventoryNumber=SearchColumnSelectField(
+                        customLabel="Inventory Number ID"
+                    ),
+                    quantity=SearchColumnDoubleField(
+                        customLabel="Quantity"
+                    ),
+                    status=SearchColumnSelectField(
+                        customLabel="Status"
+                    ),
+                )
+            ),
+            criteria=TransactionSearch(
+                TransactionSearchBasic(
+                    internalId=SearchMultiSelectField(
+                        searchValue=[RecordRef(internalId=internal_id)],
+                        operator="anyOf",
+                    ),
+                    recordType=SearchStringField(
+                        searchValue=record_type, operator="is"
+                    ),
+                )
+            ),
+        )
+        rows = self.search(search_record, advance=True)
+        return rows
+
     def get_items(self, record_type, **kwargs):
         SearchPreferences = self.get_data_type("ns4:SearchPreferences")
         ItemSearchBasic = self.get_data_type("ns5:ItemSearchBasic")
