@@ -1135,8 +1135,8 @@ class SOAPConnector(object):
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
-        limit = kwargs.get("limit", 100)
-        hours = kwargs.get("hours", 0)
+        limit = int(kwargs.get("limit", 100))
+        hours = float(kwargs.get("hours", 0))
         subsidiary = kwargs.get("subsidiary")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
@@ -1352,8 +1352,8 @@ class SOAPConnector(object):
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
-        limit = kwargs.get("limit", 100)
-        hours = kwargs.get("hours", 0)
+        limit = int(kwargs.get("limit", 100))
+        hours = float(kwargs.get("hours", 0))
         item_types = kwargs.get(
             "item_types",
             [
@@ -1556,8 +1556,8 @@ class SOAPConnector(object):
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
-        limit = kwargs.get("limit", 100)
-        hours = kwargs.get("hours", 0)
+        limit = int(kwargs.get("limit", 100))
+        hours = float(kwargs.get("hours", 0))
         vendor_id = kwargs.get("vendor_id")
         subsidiary = kwargs.get("subsidiary")
         item_detail = kwargs.get("item_detail", False)
