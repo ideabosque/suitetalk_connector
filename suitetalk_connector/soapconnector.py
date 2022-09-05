@@ -1542,6 +1542,8 @@ class SOAPConnector(object):
         line_items = self.get_line_items(internal_ids)
         for i in range(0, len(record["itemList"]["item"])):
             internal_id = record["itemList"]["item"][i]["item"]["internalId"]
+            if internal_id not in line_items.keys():
+                continue
             record["itemList"]["item"][i]["item"] = line_items[internal_id]
 
     def get_transactions(self, record_type, **kwargs):
