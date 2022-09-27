@@ -1165,8 +1165,8 @@ class SOAPConnector(object):
             search_record.subsidiary = SearchMultiSelectField(
                 searchValue=[record_ref], operator="anyOf"
             )
-        self.logger.info(f"Begin: {begin.replace(tzinfo=timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
-        self.logger.info(f"End: {end.replace(tzinfo=timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
 
         persons = []
         records = self.search(search_record, search_preferences=search_preferences)
@@ -1415,8 +1415,8 @@ class SOAPConnector(object):
                 customField=search_custom_fields
             )
 
-        self.logger.info(f"Begin: {begin.replace(tzinfo=timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
-        self.logger.info(f"End: {end.replace(tzinfo=timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
 
         items = []
         records = self.search(search_record, search_preferences=search_preferences)
@@ -1604,8 +1604,8 @@ class SOAPConnector(object):
                 searchValue=[record_ref], operator="anyOf"
             )
 
-        self.logger.info(f"Begin: {begin.replace(tzinfo=timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
-        self.logger.info(f"End: {end.replace(tzinfo=timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
 
         records = self.search(search_record, search_preferences=search_preferences)
         if records:
@@ -1625,7 +1625,7 @@ class SOAPConnector(object):
                 ]:
                     self.update_line_items(record)
 
-                if inventory_detail and record_type in ["purchaseOrder", "itemReceipt"]:
+                if inventory_detail and record_type in ["purchaseOrder", "itemReceipt", "itemFulfillment"]:
                     record.itemList = self.get_record(
                         record_type, record.internalId
                     ).itemList
