@@ -1165,8 +1165,8 @@ class SOAPConnector(object):
             search_record.subsidiary = SearchMultiSelectField(
                 searchValue=[record_ref], operator="anyOf"
             )
-        self.logger.info(f"Begin: {begin.strftime('%Y-%m-%d %H:%M:%S')}")
-        self.logger.info(f"End: {end.strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"Begin: {begin.replace(tzinfo=timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"End: {end.replace(tzinfo=timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
 
         persons = []
         records = self.search(search_record, search_preferences=search_preferences)
@@ -1415,8 +1415,8 @@ class SOAPConnector(object):
                 customField=search_custom_fields
             )
 
-        self.logger.info(f"Begin: {begin.strftime('%Y-%m-%d %H:%M:%S')}")
-        self.logger.info(f"End: {end.strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"Begin: {begin.replace(tzinfo=timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"End: {end.replace(tzinfo=timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
 
         items = []
         records = self.search(search_record, search_preferences=search_preferences)
@@ -1604,8 +1604,8 @@ class SOAPConnector(object):
                 searchValue=[record_ref], operator="anyOf"
             )
 
-        self.logger.info(f"Begin: {begin.strftime('%Y-%m-%d %H:%M:%S')}")
-        self.logger.info(f"End: {end.strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"Begin: {begin.replace(tzinfo=timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"End: {end.replace(tzinfo=timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
 
         records = self.search(search_record, search_preferences=search_preferences)
         if records:
