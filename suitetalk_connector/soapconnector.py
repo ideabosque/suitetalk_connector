@@ -1140,13 +1140,11 @@ class SOAPConnector(object):
         subsidiary = kwargs.get("subsidiary")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
+        begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
         if hours == 0:
-            end = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
+            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
         else:
-            end = begin + timedelta(
-                hours=hours
-            )
+            end = begin + timedelta(hours=hours)
 
         search_record = RecordSearchBasic(
             isInactive=SearchBooleanField(searchValue=False),
@@ -1165,8 +1163,13 @@ class SOAPConnector(object):
             search_record.subsidiary = SearchMultiSelectField(
                 searchValue=[record_ref], operator="anyOf"
             )
-        self.logger.info(f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
-        self.logger.info(f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
+
+        self.logger.info(
+            f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
+        )
+        self.logger.info(
+            f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
+        )
 
         persons = []
         records = self.search(search_record, search_preferences=search_preferences)
@@ -1308,18 +1311,12 @@ class SOAPConnector(object):
         search_record = TransactionSearchAdvanced(
             columns=TransactionSearchRow(
                 inventoryDetailJoin=InventoryDetailSearchRowBasic(
-                    binNumber=SearchColumnSelectField(
-                        customLabel="Bin Number"
-                    ),
+                    binNumber=SearchColumnSelectField(customLabel="Bin Number"),
                     inventoryNumber=SearchColumnSelectField(
                         customLabel="Inventory Number ID"
                     ),
-                    quantity=SearchColumnDoubleField(
-                        customLabel="Quantity"
-                    ),
-                    status=SearchColumnSelectField(
-                        customLabel="Status"
-                    ),
+                    quantity=SearchColumnDoubleField(customLabel="Quantity"),
+                    status=SearchColumnSelectField(customLabel="Status"),
                 )
             ),
             criteria=TransactionSearch(
@@ -1370,13 +1367,11 @@ class SOAPConnector(object):
         custom_fields = kwargs.get("custom_fields")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
+        begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
         if hours == 0:
-            end = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
+            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
         else:
-            end = begin + timedelta(
-                hours=hours
-            )
+            end = begin + timedelta(hours=hours)
 
         search_date_field = SearchDateField(
             searchValue=begin, searchValue2=end, operator="within"
@@ -1415,8 +1410,12 @@ class SOAPConnector(object):
                 customField=search_custom_fields
             )
 
-        self.logger.info(f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
-        self.logger.info(f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(
+            f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
+        )
+        self.logger.info(
+            f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
+        )
 
         items = []
         records = self.search(search_record, search_preferences=search_preferences)
@@ -1566,13 +1565,11 @@ class SOAPConnector(object):
         inventory_detail = kwargs.get("inventory_detail", False)
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
+        begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
         if hours == 0:
-            end = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
+            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
         else:
-            end = begin + timedelta(
-                hours=hours
-            )
+            end = begin + timedelta(hours=hours)
 
         search_date_field = SearchDateField(
             searchValue=begin, searchValue2=end, operator="within"
@@ -1604,8 +1601,12 @@ class SOAPConnector(object):
                 searchValue=[record_ref], operator="anyOf"
             )
 
-        self.logger.info(f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
-        self.logger.info(f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(
+            f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
+        )
+        self.logger.info(
+            f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
+        )
 
         records = self.search(search_record, search_preferences=search_preferences)
         if records:
@@ -1625,7 +1626,11 @@ class SOAPConnector(object):
                 ]:
                     self.update_line_items(record)
 
-                if inventory_detail and record_type in ["purchaseOrder", "itemReceipt", "itemFulfillment"]:
+                if inventory_detail and record_type in [
+                    "purchaseOrder",
+                    "itemReceipt",
+                    "itemFulfillment",
+                ]:
                     record.itemList = self.get_record(
                         record_type, record.internalId
                     ).itemList
@@ -1685,9 +1690,13 @@ class SOAPConnector(object):
 
         search_basic = None
         if kwargs.get("cut_date") and kwargs.get("hours"):
-            begin = datetime.strptime(kwargs.get("cut_date"), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
+            begin = datetime.strptime(
+                kwargs.get("cut_date"), "%Y-%m-%d %H:%M:%S"
+            ).replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
             if kwargs.get("hours") == 0:
-                end = datetime.now(tz=timezone(self.setting.get("TIMEZONE", "UTC"))).replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
+                end = datetime.now(
+                    tz=timezone(self.setting.get("TIMEZONE", "UTC"))
+                ).replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
             else:
                 end = begin + timedelta(hours=kwargs.get("hours"))
 
