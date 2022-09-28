@@ -1140,11 +1140,11 @@ class SOAPConnector(object):
         subsidiary = kwargs.get("subsidiary")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S")
+        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
         if hours == 0:
-            end = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S")
+            end = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
         else:
-            end = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S") + timedelta(
+            end = begin + timedelta(
                 hours=hours
             )
 
@@ -1370,11 +1370,11 @@ class SOAPConnector(object):
         custom_fields = kwargs.get("custom_fields")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S")
+        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
         if hours == 0:
-            end = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S")
+            end = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
         else:
-            end = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S") + timedelta(
+            end = begin + timedelta(
                 hours=hours
             )
 
@@ -1566,11 +1566,11 @@ class SOAPConnector(object):
         inventory_detail = kwargs.get("inventory_detail", False)
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S")
+        begin = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
         if hours == 0:
-            end = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S")
+            end = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
         else:
-            end = datetime.strptime(cut_date, "%Y-%m-%d %H:%M:%S") + timedelta(
+            end = begin + timedelta(
                 hours=hours
             )
 
@@ -1685,13 +1685,11 @@ class SOAPConnector(object):
 
         search_basic = None
         if kwargs.get("cut_date") and kwargs.get("hours"):
-            begin = datetime.strptime(kwargs.get("cut_date"), "%Y-%m-%d %H:%M:%S")
+            begin = datetime.strptime(kwargs.get("cut_date"), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
             if kwargs.get("hours") == 0:
-                end = datetime.now(tz=timezone(self.setting.get("TIMEZONE", "UTC")))
+                end = datetime.now(tz=timezone(self.setting.get("TIMEZONE", "UTC"))).replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
             else:
-                end = datetime.strptime(
-                    kwargs.get("cut_date"), "%Y-%m-%d %H:%M:%S"
-                ) + timedelta(hours=kwargs.get("hours"))
+                end = begin + timedelta(hours=kwargs.get("hours"))
 
             last_modified_date = SearchDateField(
                 searchValue=begin, searchValue2=end, operator="within"
