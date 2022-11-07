@@ -41,6 +41,12 @@ class SOAPConnector(object):
         self.lookup_record_fields = setting["NETSUITEMAPPINGS"]["lookup_record_fields"]
         self.lookup_join_fields = setting["NETSUITEMAPPINGS"]["lookup_join_fields"]
         self.custom_records = setting["NETSUITEMAPPINGS"]["custom_records"]
+        self.item_detail_record_types = setting["NETSUITEMAPPINGS"][
+            "item_detail_record_types"
+        ]
+        self.inventory_detail_record_types = setting["NETSUITEMAPPINGS"][
+            "inventory_detail_record_types"
+        ]
         self.soap_adaptor = SOAPAdaptor(logger, **setting)
 
     @property
@@ -1620,17 +1626,13 @@ class SOAPConnector(object):
                     break
                 record = records.pop()
 
-                if item_detail and record_type in [
-                    "purchaseOrder",
-                    "returnAuthorization",
-                ]:
+                if item_detail and record_type in self.item_detail_record_types:
                     self.update_line_items(record)
 
-                if inventory_detail and record_type in [
-                    "purchaseOrder",
-                    "itemReceipt",
-                    "itemFulfillment",
-                ]:
+                if (
+                    inventory_detail
+                    and record_type in self.inventory_detail_record_types
+                ):
                     record.itemList = self.get_record(
                         record_type, record.internalId
                     ).itemList
