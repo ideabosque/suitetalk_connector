@@ -687,6 +687,14 @@ class SOAPConnector(object):
                     quantity=qty,
                 )
 
+                if _item.get("location"):
+                    location = self.get_record_by_variables(
+                        "location", **{"name": _item.get("location")}
+                    )
+                    transaction_item.location = RecordRef(
+                        internalId=location.internalId
+                    )
+
                 # Calculate item price level or customized price.
                 difference = -1
                 if pricelevel is not None and item.pricingMatrix is not None:
