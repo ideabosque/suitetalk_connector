@@ -232,7 +232,7 @@ class SOAPConnector(object):
             record_type, search_data_type, field, value, operator=operator
         )
         if records:
-            return records[0]
+            return list(filter(lambda x: x[field] == value, records))[0]
         return None
 
     def get_record_by_variables(self, record_type, **kwargs):
