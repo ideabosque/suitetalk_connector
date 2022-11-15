@@ -231,7 +231,7 @@ class SOAPConnector(object):
         records = self.get_records_by_lookup(
             record_type, search_data_type, field, value, operator=operator
         )
-        if records:
+        if records and len(records) > 0:
             return list(filter(lambda x: x[field] == value, records))[0]
         return None
 
