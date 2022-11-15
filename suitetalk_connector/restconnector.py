@@ -103,7 +103,10 @@ class RESTConnector(object):
 
     def get_records_by_condition(self, record_type, condition, limit=None, offset=None):
         request_url = f"{self.rest_services}/record/v1/{record_type}"
-        params = {"q": condition}
+        params = {}
+        if condition:
+            params = {"q": condition}
+
         if limit and offset:
             params.update(
                 {
