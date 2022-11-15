@@ -232,7 +232,7 @@ class SOAPConnector(object):
             record_type, search_data_type, field, value, operator=operator
         )
         if records:
-            _records = list(filter(lambda x: x.get(field) == value, records))
+            _records = list(filter(lambda x: x[field] == value, records))
             if len(_records) > 0:
                 return _records[0]
         return None
