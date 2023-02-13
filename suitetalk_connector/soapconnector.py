@@ -678,7 +678,7 @@ class SOAPConnector(object):
         for _item in transaction.pop("items"):
             sku = _item.get("sku")
             qty = _item.get("qty")
-            commit_inventory = _item.get("commit_inventory")
+            commit_inventory = _item.get("commitInventory")
             lot_no_locs = _item.get("lot_no_locs")
             item = self.get_record_by_variables("inventoryItem", **{"itemId": sku})
             if item is not None:
