@@ -47,6 +47,9 @@ class SOAPConnector(object):
         self.inventory_detail_record_types = setting["NETSUITEMAPPINGS"][
             "inventory_detail_record_types"
         ]
+        self.update_exception_record_types = setting["NETSUITEMAPPINGS"].get(
+            "update_exception_record_types", []
+        )
         self.soap_adaptor = SOAPAdaptor(logger, **setting)
 
     @property
@@ -68,7 +71,9 @@ class SOAPConnector(object):
     def add(self, record):
         return self.soap_adaptor.add(record)
 
-    def update(self, record):
+    def update(self, record, record_type=None):
+        if record_type in self.update_exception_record_types:
+            return
         return self.soap_adaptor.update(record)
 
     def get_select_values(self, field, record_type, sublist=None):
@@ -863,7 +868,7 @@ class SOAPConnector(object):
         if record:
             transaction.pop("source")
             transaction.update({"internalId": record.internalId})
-            self.update(Transaction(**transaction))
+            self.update(Transaction(**transaction), record_type=record_type)
         else:
             record = self.add(Transaction(**transaction))
             record = self.get_record(record_type, record.internalId)
@@ -991,7 +996,7 @@ class SOAPConnector(object):
                     person.pop("subsidiary")
 
                 person.update({"internalId": record.internalId})
-                self.update(Person(**person))
+                self.update(Person(**person), record_type=record_type)
                 return record.internalId
 
         record = self.add(Person(**person))
@@ -1132,7 +1137,7 @@ class SOAPConnector(object):
                 not in self.setting["NETSUITEMAPPINGS"].get("PRESERVEDFIELDS", [])
             ]
             item.update({"internalId": record.internalId})
-            self.update(Item(**item))
+            self.update(Item(**item), record_type=record_type)
             return record.internalId
 
         record = self.add(Item(**item))
