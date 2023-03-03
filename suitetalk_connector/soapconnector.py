@@ -842,6 +842,26 @@ class SOAPConnector(object):
                 {"orderStatus": SalesOrderOrderStatus(transaction.get("orderStatus"))}
             )
 
+        # Created From
+        if transaction.get("createdFrom"):
+            lookup_join_fields = self.lookup_join_fields.get(record_type)
+            created_from_record_lookup = self.lookup_record_fields.get(
+                lookup_join_fields["created_from_lookup_type"]
+            )
+            created_from_record = self.get_record_by_variables(
+                lookup_join_fields["created_from_lookup_type"],
+                **{created_from_record_lookup["field"]: transaction["createdFrom"]},
+            )
+            if created_from_record:
+                transaction.update(
+                    {
+                        "createdFrom": RecordRef(
+                            internalId=created_from_record.internalId,
+                            type=lookup_join_fields["created_from_lookup_type"],
+                        )
+                    }
+                )
+
         # Order Custom Fields
         _custom_fields = transaction.pop("customFields")
         custom_fields = self.get_custom_fields(_custom_fields, record_type)
