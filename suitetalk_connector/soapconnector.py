@@ -1671,7 +1671,7 @@ class SOAPConnector(object):
                     ).itemList
 
                 for entity_type, value in self.lookup_join_fields.items():
-                    if record_type in value["created_from_types"]:
+                    if record_type in value.get("created_from_types", []):
                         entities = self.get_transactions_by_created_from(
                             entity_type,
                             **{
