@@ -762,13 +762,17 @@ class SOAPConnector(object):
                     inventory_assignments = []
                     for lot_no_loc in lot_no_locs:
                         records = self.get_inventory_numbers(
-                            **{"inventory_number": lot_no_loc["lot_no"]}
+                            **{"item_internal_id": item.internalId}
                         )
                         if records is None:
                             continue
 
                         _records = list(
-                            filter(lambda x: x["status"] == "Available", records)
+                            filter(
+                                lambda x: x["status"] == "Available"
+                                and x["inventoryNumber"] == lot_no_loc["lot_no"],
+                                records,
+                            )
                         )
                         if len(_records) == 0:
                             continue
@@ -1333,7 +1337,7 @@ class SOAPConnector(object):
             return rows[0].basic.lastQuantityAvailableChange[0].searchValue
         return None
 
-    def get_inventory_detail(self, record_type, internal_id):
+    def get_inventory_detail_by_transaction(self, record_type, internal_id):
         RecordRef = self.get_data_type("ns0:RecordRef")
         TransactionSearchAdvanced = self.get_data_type("ns19:TransactionSearchAdvanced")
         TransactionSearchRow = self.get_data_type("ns19:TransactionSearchRow")
@@ -1369,6 +1373,56 @@ class SOAPConnector(object):
                     ),
                 )
             ),
+        )
+        rows = self.search(search_record, advance=True)
+        return rows
+
+    def get_inventory_detail(self, internal_id, use_bin_number=False):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        ItemSearchAdvanced = self.get_data_type("ns17:ItemSearchAdvanced")
+        ItemSearchRow = self.get_data_type("ns17:ItemSearchRow")
+        InventoryDetailSearchRowBasic = self.get_data_type(
+            "ns5:InventoryDetailSearchRowBasic"
+        )
+        ItemSearch = self.get_data_type("ns17:ItemSearch")
+        InventoryDetailSearchBasic = self.get_data_type(
+            "ns5:InventoryDetailSearchBasic"
+        )
+        SearchColumnSelectField = self.get_data_type("ns0:SearchColumnSelectField")
+        SearchColumnDoubleField = self.get_data_type("ns0:SearchColumnDoubleField")
+        SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
+
+        if use_bin_number:
+            item_search = ItemSearch(
+                inventoryDetailJoin=InventoryDetailSearchBasic(
+                    binNumber=SearchMultiSelectField(
+                        searchValue=[RecordRef(internalId=internal_id)],
+                        operator="anyOf",
+                    ),
+                )
+            )
+        else:
+            item_search = ItemSearch(
+                inventoryDetailJoin=InventoryDetailSearchBasic(
+                    inventoryNumber=SearchMultiSelectField(
+                        searchValue=[RecordRef(internalId=internal_id)],
+                        operator="anyOf",
+                    ),
+                )
+            )
+
+        search_record = ItemSearchAdvanced(
+            columns=ItemSearchRow(
+                inventoryDetailJoin=InventoryDetailSearchRowBasic(
+                    binNumber=SearchColumnSelectField(customLabel="Bin Number"),
+                    inventoryNumber=SearchColumnSelectField(
+                        customLabel="Inventory Number ID"
+                    ),
+                    quantity=SearchColumnDoubleField(customLabel="Quantity"),
+                    status=SearchColumnSelectField(customLabel="Status"),
+                )
+            ),
+            criteria=item_search,
         )
         rows = self.search(search_record, advance=True)
         return rows
