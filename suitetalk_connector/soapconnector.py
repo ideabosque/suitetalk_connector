@@ -248,20 +248,19 @@ class SOAPConnector(object):
 
         record_lookup = self.lookup_record_fields.get(record_type)
         if kwargs.get(record_lookup["field"]):
+            variables = {
+                "record_type": record_type,
+                "search_data_type": record_lookup["search_data_type"],
+                "field": record_lookup["field"],
+                "value": kwargs.get(record_lookup["field"]),
+            }
             if kwargs.get("operator"):
-                return self.get_record_by_lookup(
-                    record_type,
-                    record_lookup["search_data_type"],
-                    record_lookup["field"],
-                    kwargs.get(record_lookup["field"]),
-                    operator=kwargs.get("operator"),
+                variables.update(
+                    {
+                        "operator": kwargs.get("operator"),
+                    }
                 )
-            return self.get_record_by_lookup(
-                record_type,
-                record_lookup["search_data_type"],
-                record_lookup["field"],
-                kwargs.get(record_lookup["field"]),
-            )
+            return self.get_record_by_lookup(**variables)
 
         raise Exception("Miss required variables!!!")
 
@@ -694,7 +693,7 @@ class SOAPConnector(object):
             commit_inventory = _item.get("commitInventory")
             lot_no_locs = _item.get("lot_no_locs")
             item = self.get_record_by_variables(
-                "inventoryItem", **{"itemId": sku, "operator": "equalTo"}
+                "inventoryItem", **{"itemId": sku, "operator": "is"}
             )
             if item is not None:
                 transaction_item = TransactionItem(
