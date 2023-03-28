@@ -79,8 +79,8 @@ class SOAPConnector(object):
     def get_select_values(self, field, record_type, sublist=None):
         return self.soap_adaptor.get_select_values(field, record_type, sublist=sublist)
 
-    def get_select_value_id(self, value, field, record_type, sublist=None):
-        if self.lookup_select_values.get(field):
+    def get_select_value_id(self, value, field, record_type=None, sublist=None):
+        try:
             if self.lookup_select_values[field].get(
                 "values"
             ) and self.lookup_select_values[field]["values"].get(value):
@@ -93,13 +93,17 @@ class SOAPConnector(object):
                     value,
                 )
 
-        select_values = self.get_select_values(field, record_type, sublist=sublist)
-        id = select_values.get(value)
-        assert (
-            id is not None
-        ), f"Cannot find the select value ({value}) with the field ({field}) and record type ({record_type})."
+            select_values = self.get_select_values(field, record_type, sublist=sublist)
+            id = select_values.get(value)
+            assert (
+                id is not None
+            ), f"Cannot find the select value ({value}) with the field ({field}) and record type ({record_type})."
 
-        return id
+            return id
+        except:
+            raise Exception(
+                f"Cannot find the field ({field}) and record type ({record_type}) in the configuration."
+            )
 
     def get_record(self, record_type, id, use_external_id=False):
         RecordRef = self.get_data_type("ns0:RecordRef")
@@ -286,7 +290,10 @@ class SOAPConnector(object):
                             value=[
                                 ListOrRecordRef(
                                     internalId=self.get_select_value_id(
-                                        i, script_id, record_type, sublist=sublist
+                                        i,
+                                        script_id,
+                                        record_type=record_type,
+                                        sublist=sublist,
                                     )
                                 )
                                 for i in value
@@ -299,7 +306,10 @@ class SOAPConnector(object):
                             scriptId=script_id,
                             value=ListOrRecordRef(
                                 internalId=self.get_select_value_id(
-                                    value, script_id, record_type, sublist=sublist
+                                    value,
+                                    script_id,
+                                    record_type=record_type,
+                                    sublist=sublist,
                                 )
                             ),
                         )
@@ -351,7 +361,7 @@ class SOAPConnector(object):
                                 internalId=self.get_select_value_id(
                                     i,
                                     script_id,
-                                    record_type,
+                                    record_type=record_type,
                                 )
                             )
                             for i in value
@@ -666,7 +676,7 @@ class SOAPConnector(object):
                 ):
                     continue
 
-                id = self.get_select_value_id(value, key, record_type)
+                id = self.get_select_value_id(value, key, record_type=record_type)
                 if id:
                     transaction.update({key: RecordRef(internalId=id)})
 
@@ -928,7 +938,7 @@ class SOAPConnector(object):
                             internalId=self.get_select_value_id(
                                 "Standard Customer Deposit",
                                 "customForm",
-                                "customerDeposit",
+                                record_type="customerDeposit",
                             )
                         ),
                         "payment": payment,
@@ -977,7 +987,7 @@ class SOAPConnector(object):
             ):
                 continue
 
-            id = self.get_select_value_id(value, key, record_type)
+            id = self.get_select_value_id(value, key, record_type=record_type)
             if id:
                 person.update({key: RecordRef(internalId=id)})
 
@@ -1068,7 +1078,7 @@ class SOAPConnector(object):
             ):
                 continue
 
-            id = self.get_select_value_id(value, key, record_type)
+            id = self.get_select_value_id(value, key, record_type=record_type)
             item.update({key: RecordRef(internalId=id)})
 
         # Lookup Subsidiaries.
@@ -1456,7 +1466,7 @@ class SOAPConnector(object):
                         )
                     if key == "status":
                         entity[key] = self.get_select_value_id(
-                            entity[key]["internalId"], "inventoryStatus", None
+                            entity[key]["internalId"], "inventoryStatus"
                         )
             entities.append(entity)
         return entities
