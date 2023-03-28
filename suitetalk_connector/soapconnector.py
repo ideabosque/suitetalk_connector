@@ -248,6 +248,14 @@ class SOAPConnector(object):
 
         record_lookup = self.lookup_record_fields.get(record_type)
         if kwargs.get(record_lookup["field"]):
+            if kwargs.get("operator"):
+                return self.get_record_by_lookup(
+                    record_type,
+                    record_lookup["search_data_type"],
+                    record_lookup["field"],
+                    kwargs.get(record_lookup["field"]),
+                    operator=kwargs.get("operator"),
+                )
             return self.get_record_by_lookup(
                 record_type,
                 record_lookup["search_data_type"],
@@ -685,7 +693,9 @@ class SOAPConnector(object):
             qty = _item.get("qty")
             commit_inventory = _item.get("commitInventory")
             lot_no_locs = _item.get("lot_no_locs")
-            item = self.get_record_by_variables("inventoryItem", **{"itemId": sku})
+            item = self.get_record_by_variables(
+                "inventoryItem", **{"itemId": sku, "operator": "equalTo"}
+            )
             if item is not None:
                 transaction_item = TransactionItem(
                     item=RecordRef(internalId=item.internalId),
@@ -1375,7 +1385,7 @@ class SOAPConnector(object):
             ),
         )
         rows = self.search(search_record, advance=True)
-        return rows
+        return self.get_values_for_inventory_detail(rows)
 
     def get_inventory_detail(self, internal_id, use_bin_number=False):
         RecordRef = self.get_data_type("ns0:RecordRef")
@@ -1425,7 +1435,32 @@ class SOAPConnector(object):
             criteria=item_search,
         )
         rows = self.search(search_record, advance=True)
-        return rows
+        return self.get_values_for_inventory_detail(rows)
+
+    def get_values_for_inventory_detail(self, rows):
+        entities = []
+        for row in rows:
+            entity = {}
+            for key in row["inventoryDetailJoin"]:
+                entity[key] = None
+                if len(row["inventoryDetailJoin"][key]) != 0:
+                    entity[key] = row["inventoryDetailJoin"][key][0]["searchValue"]
+                    if key == "binNumber":
+                        entity[key] = self.get_record(
+                            "bin",
+                            entity[key]["internalId"],
+                        )
+                    if key == "inventoryNumber":
+                        entity[key] = self.get_record(
+                            "inventoryNumber",
+                            entity[key]["internalId"],
+                        )
+                    if key == "status":
+                        entity[key] = self.get_select_value_id(
+                            entity[key]["internalId"], "inventoryStatus", None
+                        )
+            entities.append(entity)
+        return entities
 
     def get_items(self, record_type, **kwargs):
         SearchPreferences = self.get_data_type("ns4:SearchPreferences")
