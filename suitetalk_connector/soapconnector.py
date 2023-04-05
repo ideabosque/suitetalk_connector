@@ -1680,7 +1680,22 @@ class SOAPConnector(object):
             internal_id = record["itemList"]["item"][i]["item"]["internalId"]
             if internal_id not in line_items.keys():
                 continue
-            record["itemList"]["item"][i]["item"] = line_items[internal_id]
+
+            if "locationsList" in line_items[internal_id].__dict__["__values__"].keys():
+                record["itemList"]["item"][i]["item"]["locationsList"] = line_items[
+                    internal_id
+                ]["locationsList"]
+            if (
+                "itemVendorList"
+                in line_items[internal_id].__dict__["__values__"].keys()
+            ):
+                record["itemList"]["item"][i]["item"]["itemVendorList"] = line_items[
+                    internal_id
+                ]["itemVendorList"]
+            if "pricingMatrix" in line_items[internal_id].__dict__["__values__"].keys():
+                record["itemList"]["item"][i]["item"]["pricingMatrix"] = line_items[
+                    internal_id
+                ]["pricingMatrix"]
 
     def get_transactions(self, record_type, **kwargs):
         SearchPreferences = self.get_data_type("ns4:SearchPreferences")
@@ -1757,9 +1772,6 @@ class SOAPConnector(object):
                     break
                 record = records.pop()
 
-                if item_detail and record_type in self.item_detail_record_types:
-                    self.update_line_items(record)
-
                 if (
                     inventory_detail
                     and record_type in self.inventory_detail_record_types
@@ -1767,6 +1779,9 @@ class SOAPConnector(object):
                     record.itemList = self.get_record(
                         record_type, record.internalId
                     ).itemList
+
+                if item_detail and record_type in self.item_detail_record_types:
+                    self.update_line_items(record)
 
                 for entity_type, value in self.lookup_join_fields.items():
                     if record_type in value.get("created_from_types", []):
