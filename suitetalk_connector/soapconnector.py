@@ -1202,18 +1202,38 @@ class SOAPConnector(object):
         subsidiary = kwargs.get("subsidiary")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
-        if hours == 0:
-            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
+        if kwargs.get("internal_ids"):
+            search_record = RecordSearchBasic(
+                isInactive=SearchBooleanField(searchValue=False),
+                internalId=SearchMultiSelectField(
+                    searchValue=[
+                        RecordRef(internalId=internal_id)
+                        for internal_id in kwargs.get("internal_ids")[:limit]
+                    ],
+                    operator="anyOf",
+                ),
+            )
         else:
-            end = begin + timedelta(hours=hours)
+            begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
+            if hours == 0:
+                end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
+            else:
+                end = begin + timedelta(hours=hours)
 
-        search_record = RecordSearchBasic(
-            isInactive=SearchBooleanField(searchValue=False),
-            lastModifiedDate=SearchDateField(
-                searchValue=begin, searchValue2=end, operator="within"
-            ),
-        )
+            search_record = RecordSearchBasic(
+                isInactive=SearchBooleanField(searchValue=False),
+                lastModifiedDate=SearchDateField(
+                    searchValue=begin, searchValue2=end, operator="within"
+                ),
+            )
+
+            self.logger.info(
+                f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
+            )
+            self.logger.info(
+                f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
+            )
+
         if subsidiary:
             record = self.get_record_by_variables(
                 "subsidiary",
@@ -1225,13 +1245,6 @@ class SOAPConnector(object):
             search_record.subsidiary = SearchMultiSelectField(
                 searchValue=[record_ref], operator="anyOf"
             )
-
-        self.logger.info(
-            f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
-        )
-        self.logger.info(
-            f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
-        )
 
         persons = []
         records = self.search(search_record, search_preferences=search_preferences)
@@ -1504,23 +1517,51 @@ class SOAPConnector(object):
         custom_fields = kwargs.get("custom_fields")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
-        if hours == 0:
-            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
-        else:
-            end = begin + timedelta(hours=hours)
 
-        search_date_field = SearchDateField(
-            searchValue=begin, searchValue2=end, operator="within"
-        )
-
-        search_record = ItemSearchBasic(
-            type=SearchEnumMultiSelectField(searchValue=item_types, operator="anyOf"),
-        )
-        if record_type in ["inventory", "inventoryLot"] and last_qty_available_change:
-            search_record.lastQuantityAvailableChange = search_date_field
+        if kwargs.get("internal_ids"):
+            search_record = ItemSearchBasic(
+                type=SearchEnumMultiSelectField(
+                    searchValue=item_types, operator="anyOf"
+                ),
+                internalId=SearchMultiSelectField(
+                    searchValue=[
+                        RecordRef(internalId=internal_id)
+                        for internal_id in kwargs.get("internal_ids")[:limit]
+                    ],
+                    operator="anyOf",
+                ),
+            )
         else:
-            search_record.lastModifiedDate = search_date_field
+            begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
+            if hours == 0:
+                end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
+            else:
+                end = begin + timedelta(hours=hours)
+
+            search_date_field = SearchDateField(
+                searchValue=begin, searchValue2=end, operator="within"
+            )
+
+            search_record = ItemSearchBasic(
+                type=SearchEnumMultiSelectField(
+                    searchValue=item_types, operator="anyOf"
+                ),
+            )
+            if (
+                record_type in ["inventory", "inventoryLot"]
+                and last_qty_available_change
+            ):
+                search_record.lastQuantityAvailableChange = search_date_field
+            else:
+                search_record.lastModifiedDate = search_date_field
+
+            self.logger.info(
+                f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
+            )
+            self.logger.info(
+                f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
+            )
+
         if vendor_name:
             search_record.vendorName = SearchStringField(
                 searchValue=vendor_name, operator="is"
@@ -1546,13 +1587,6 @@ class SOAPConnector(object):
             search_record.customFieldList = SearchCustomFieldList(
                 customField=search_custom_fields
             )
-
-        self.logger.info(
-            f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
-        )
-        self.logger.info(
-            f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
-        )
 
         items = []
         records = self.search(search_record, search_preferences=search_preferences)
@@ -1717,23 +1751,42 @@ class SOAPConnector(object):
         inventory_detail = kwargs.get("inventory_detail", False)
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
-        if hours == 0:
-            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
+        if kwargs.get("internal_ids"):
+            search_record = TransactionSearchBasic(
+                type=SearchEnumMultiSelectField(
+                    searchValue=[record_type], operator="anyOf"
+                ),
+                internalId=SearchMultiSelectField(
+                    searchValue=[
+                        RecordRef(internalId=internal_id)
+                        for internal_id in kwargs.get("internal_ids")[:limit]
+                    ],
+                    operator="anyOf",
+                ),
+            )
         else:
-            end = begin + timedelta(hours=hours)
+            begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
+            if hours == 0:
+                end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
+            else:
+                end = begin + timedelta(hours=hours)
 
-        search_date_field = SearchDateField(
-            searchValue=begin, searchValue2=end, operator="within"
-        )
+            search_date_field = SearchDateField(
+                searchValue=begin, searchValue2=end, operator="within"
+            )
 
-        transactions = []
-        search_record = TransactionSearchBasic(
-            type=SearchEnumMultiSelectField(
-                searchValue=[record_type], operator="anyOf"
-            ),
-            lastModifiedDate=search_date_field,
-        )
+            search_record = TransactionSearchBasic(
+                type=SearchEnumMultiSelectField(
+                    searchValue=[record_type], operator="anyOf"
+                ),
+                lastModifiedDate=search_date_field,
+            )
+            self.logger.info(
+                f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
+            )
+            self.logger.info(
+                f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
+            )
 
         if vendor_id:
             record_ref = RecordRef(internalId=vendor_id)
@@ -1753,13 +1806,7 @@ class SOAPConnector(object):
                 searchValue=[record_ref], operator="anyOf"
             )
 
-        self.logger.info(
-            f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
-        )
-        self.logger.info(
-            f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
-        )
-
+        transactions = []
         records = self.search(search_record, search_preferences=search_preferences)
         if records:
             records = sorted(records, key=lambda x: x["lastModifiedDate"], reverse=True)
@@ -1838,13 +1885,13 @@ class SOAPConnector(object):
 
         search_basic = None
         if kwargs.get("cut_date") and kwargs.get("hours"):
-            begin = datetime.strptime(
-                kwargs.get("cut_date"), "%Y-%m-%d %H:%M:%S"
-            ).replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
+            begin = datetime.strptime(kwargs.get("cut_date"), "%Y-%m-%dT%H:%M:%S%z")
             if kwargs.get("hours") == 0:
-                end = datetime.now(
-                    tz=timezone(self.setting.get("TIMEZONE", "UTC"))
-                ).replace(tzinfo=timezone(self.setting.get("TIMEZONE", "UTC")))
+                end = (
+                    datetime.now(
+                        tz=timezone(self.setting.get("TIMEZONE", "UTC"))
+                    ).strftime("%Y-%m-%dT%H:%M:%S%z"),
+                )
             else:
                 end = begin + timedelta(hours=kwargs.get("hours"))
 
@@ -1853,7 +1900,7 @@ class SOAPConnector(object):
             )
             search_basic = SearchBasic(lastModifiedDate=last_modified_date)
 
-        if kwargs.get("data_types"):
+        if kwargs.get("data_type"):
             data_type = SearchEnumMultiSelectField(
                 searchValue=[kwargs.get("data_type")], operator="anyOf"
             )
