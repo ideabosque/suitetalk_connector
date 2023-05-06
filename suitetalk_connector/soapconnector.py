@@ -771,7 +771,6 @@ class SOAPConnector(object):
 
                 # Check if commitInventory is None or not.
                 if commit_inventory:
-
                     transaction_item.commitInventory = SalesOrderItemCommitInventory(
                         commit_inventory
                     )
