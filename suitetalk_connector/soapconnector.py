@@ -1203,7 +1203,7 @@ class SOAPConnector(object):
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
         if kwargs.get("internal_ids"):
             search_record = RecordSearchBasic(
-                isInactive=SearchBooleanField(searchValue=False),
+                # isInactive=SearchBooleanField(searchValue=False),
                 internalId=SearchMultiSelectField(
                     searchValue=[
                         RecordRef(internalId=internal_id)
@@ -1220,7 +1220,7 @@ class SOAPConnector(object):
                 end = begin + timedelta(hours=hours)
 
             search_record = RecordSearchBasic(
-                isInactive=SearchBooleanField(searchValue=False),
+                # isInactive=SearchBooleanField(searchValue=False),
                 lastModifiedDate=SearchDateField(
                     searchValue=begin, searchValue2=end, operator="within"
                 ),
