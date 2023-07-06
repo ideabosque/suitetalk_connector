@@ -1822,9 +1822,14 @@ class SOAPConnector(object):
                     inventory_detail
                     and record_type in self.inventory_detail_record_types
                 ):
-                    record.itemList = self.get_record(
-                        record_type, record.internalId
-                    ).itemList
+                    if record_type in ["inventoryTransfer", "inventoryAdjustment"]:
+                        record.inventoryList = self.get_record(
+                            record_type, record.internalId
+                        ).inventoryList
+                    else:
+                        record.itemList = self.get_record(
+                            record_type, record.internalId
+                        ).itemList
 
                 if item_detail and record_type in self.item_detail_record_types:
                     self.update_line_items(record)
