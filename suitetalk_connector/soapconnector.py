@@ -167,19 +167,75 @@ class SOAPConnector(object):
         SearchPreferences = self.get_data_type("ns4:SearchPreferences")
         CustomRecordSearchBasic = self.get_data_type("ns5:CustomRecordSearchBasic")
         SearchStringField = self.get_data_type("ns0:SearchStringField")
+        SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
         recordRef = RecordRef(internalId=rec_type_id)
-        search_record = CustomRecordSearchBasic(
-            **{
-                "recType": recordRef,
-                field: SearchStringField(searchValue=value, operator="is"),
-            }
-        )
+        if field == "internalId":
+            search_record = CustomRecordSearchBasic(
+                **{
+                    "recType": recordRef,
+                    field: SearchMultiSelectField(
+                        searchValue=[value],
+                        operator="anyOf",
+                    ),
+                }
+            )
+        else:
+            search_record = CustomRecordSearchBasic(
+                **{
+                    "recType": recordRef,
+                    field: SearchStringField(searchValue=value, operator="is"),
+                }
+            )
         records = self.search(search_record, search_preferences=search_preferences)
         if records is not None:
             return records[-1]
         return None
+
+    def get_custom_records(self, rec_type_id, **kwargs):
+        SearchPreferences = self.getDataType("ns4:SearchPreferences")
+        CustomRecordSearchBasic = self.getDataType("ns5:CustomRecordSearchBasic")
+        RecordRef = self.getDataType("ns0:RecordRef")
+        SearchDateField = self.getDataType("ns0:SearchDateField")
+
+        cut_date = kwargs.get("cut_date")
+        end_date = kwargs.get("end_date")
+        limit = int(kwargs.get("limit", 100))
+        hours = float(kwargs.get("hours", 0))
+
+        search_preferences = SearchPreferences(bodyFieldsOnly=False)
+
+        begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
+        if hours == 0:
+            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
+        else:
+            end = begin + timedelta(hours=hours)
+
+        record_ref = RecordRef(internalId=rec_type_id)
+        search_record = CustomRecordSearchBasic(
+            recType=record_ref,
+            lastModified=SearchDateField(
+                searchValue=begin, searchValue2=end, operator="within"
+            ),
+        )
+        records = []
+        _records = self.search(search_record, searchPreferences=search_preferences)
+
+        if _records is None:
+            return records
+
+        _records = sorted(_records, key=lambda x: x["lastModified"], reverse=True)
+        while len(_records):
+            if (
+                len(records) >= limit
+                and records[len(records) - 1]["lastModified"]
+                != _records[len(_records) - 1]["lastModified"]
+            ):
+                break
+            _record = _records.pop()
+            records.append(_record)
+        return records
 
     def get_records_by_lookup(
         self, record_type, search_data_type, field, value, operator="contains"
