@@ -220,7 +220,7 @@ class SOAPConnector(object):
             ),
         )
         records = []
-        _records = self.search(search_record, searchPreferences=search_preferences)
+        _records = self.search(search_record, search_preferences=search_preferences)
 
         if _records is None:
             return records
