@@ -176,7 +176,7 @@ class SOAPConnector(object):
                 **{
                     "recType": record_ref,
                     field: SearchMultiSelectField(
-                        searchValue=[value],
+                        searchValue=[RecordRef(internalId=value)],
                         operator="anyOf",
                     ),
                 }
