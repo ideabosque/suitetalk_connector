@@ -170,11 +170,11 @@ class SOAPConnector(object):
         SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        recordRef = RecordRef(internalId=rec_type_id)
+        record_ref = RecordRef(internalId=rec_type_id)
         if field == "internalId":
             search_record = CustomRecordSearchBasic(
                 **{
-                    "recType": recordRef,
+                    "recType": record_ref,
                     field: SearchMultiSelectField(
                         searchValue=[value],
                         operator="anyOf",
@@ -184,7 +184,7 @@ class SOAPConnector(object):
         else:
             search_record = CustomRecordSearchBasic(
                 **{
-                    "recType": recordRef,
+                    "recType": record_ref,
                     field: SearchStringField(searchValue=value, operator="is"),
                 }
             )
@@ -194,10 +194,10 @@ class SOAPConnector(object):
         return None
 
     def get_custom_records(self, rec_type_id, **kwargs):
-        SearchPreferences = self.getDataType("ns4:SearchPreferences")
-        CustomRecordSearchBasic = self.getDataType("ns5:CustomRecordSearchBasic")
-        RecordRef = self.getDataType("ns0:RecordRef")
-        SearchDateField = self.getDataType("ns0:SearchDateField")
+        SearchPreferences = self.get_data_type("ns4:SearchPreferences")
+        CustomRecordSearchBasic = self.get_data_type("ns5:CustomRecordSearchBasic")
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        SearchDateField = self.get_data_type("ns0:SearchDateField")
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
