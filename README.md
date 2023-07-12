@@ -425,7 +425,20 @@ This method will return the record object corresponding to the specified record 
 Retrieve transactions based on the cut date and other parameters.
 
 Parameters:
-- `record_type`: The transaction record type.
+- `record_type`: The transaction record type. Choose from the following options:
+  - "salesOrder"
+  - "invoice"
+  - "purchaseOrder"
+  - "estimate"
+  - "opportunity"
+  - "returnAuthorization"
+  - "itemFulfillment"
+  - "itemReceipt"
+  - "vendorCredit"
+  - "vendorPayment"
+  - "inventoryAdjustment"
+  - "creditMemo"
+  - "inventoryTransfer"
 - `kwargs`: Additional parameters for filtering and customization.
 
 ```python
@@ -449,7 +462,11 @@ This method will retrieve transactions of the specified record type based on the
 Retrieve items based on the cut date and other parameters.
 
 Parameters:
-- `record_type`: The item record type.
+- `record_type`: The item record type. Choose from the following options:
+  - "product"
+  - "inventory"
+  - "inventorylot"
+  - "pricelevel"
 - `kwargs`: Additional parameters for filtering and customization.
 
 ```python
@@ -477,7 +494,11 @@ This method will retrieve items of the specified record type based on the provid
 Retrieve persons based on the cut date and other parameters.
 
 Parameters:
-- `record_type`: The person record type.
+- `record_type`: The person record type. Choose from the following options:
+  - "customer"
+  - "vendor"
+  - "company"
+  - "contact"
 - `kwargs`: Additional parameters for filtering and customization.
 
 ```python
@@ -498,7 +519,9 @@ This method will retrieve persons of the specified record type based on the prov
 - `cut_date`: The last run of the cut date. Format: YYYY-MM-DD HH:MM:SS.
 - `limit`: The limit amount of records to be retrieved.
 - `hours`: The period from the cut date in hours.
-- `inventory_detail` (for `get_transactions`): Boolean value indicating whether to retrieve the detail of inventory information.
+- `inventory_detail` (for `get_transactions`): A boolean value indicating whether to retrieve the detail of inventory information.
 - `subsidiary`: The subsidiary of the company.
-- `item_types` (for `get_items`): List of item record types to be retrieved.
-- `custom_fields` (for `get_items`): Dictionary of custom fields and their values to be used as conditions for retrieving data.
+- `item_types` (for `get_items`): A list of item record types to be retrieved.
+- `custom_fields` (for `get_items`): A dictionary of custom fields and their values to be used as conditions for retrieving data.
+
+Feel free to customize the method parameters based on your specific use case.
