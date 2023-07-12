@@ -193,9 +193,7 @@ Create a `netsuitemappings_soap.json` file in the project directory with the app
     },
     "returnAuthorization": {
       "field": "custbody_rma_reference",
-     
-
- "search_data_type": "ns5:TransactionSearchBasic"
+      "search_data_type": "ns5:TransactionSearchBasic"
     },
     "inventoryItem": {
       "field": "itemId",
