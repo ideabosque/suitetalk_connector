@@ -441,7 +441,7 @@ Parameters:
 
 ```python
 kwargs = {
-    "cut_date": "2022-08-22 17:19:00",
+    "cut_date": "2022-02-04T16:00:00+00:00",
     "limit": 100,
     "hours": 0.25,
     "inventory_detail": True,
@@ -514,7 +514,7 @@ This method will retrieve persons of the specified record type based on the prov
 
 **Parameters in `kwargs` for `get_transactions`, `get_items`, and `get_persons`:**
 
-- `cut_date`: The last run of the cut date. Format: YYYY-MM-DD HH:MM:SS.
+- `cut_date`: The last run of the cut date. Format: YYYY-MM-DDTHH:MM:SS.
 - `limit`: The limit amount of records to be retrieved.
 - `hours`: The period from the cut date in hours.
 - `inventory_detail` (for `get_transactions`): A boolean value indicating whether to retrieve the detail of inventory information.
