@@ -524,4 +524,3 @@ This method will retrieve persons of the specified record type based on the prov
 - `item_types` (for `get_items`): A list of item record types to be retrieved.
 - `custom_fields` (for `get_items`): A dictionary of custom fields and their values to be used as conditions for retrieving data.
 
-Feel free to customize the method parameters based on your specific use case.
