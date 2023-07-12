@@ -47,7 +47,7 @@ To configure the NetSuite SuiteTalk Connector, you'll need to set up the followi
 
 Create a `.env` file in the project directory with the following example configuration:
 
-```
+```plaintext
 ACCOUNT=*******
 CONSUMER_KEY=****************************************************************
 CONSUMER_SECRET==****************************************************************
