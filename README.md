@@ -378,3 +378,126 @@ $ python -m pip install dotenv
 Make sure to replace the path to the `netsuitemappings_soap.json` file with the appropriate location in your project directory.
 
 With this configuration, you can now use the `soap_connector` object to interact with the NetSuite SuiteTalk API.
+
+## Usage
+
+To use the NetSuite SuiteTalk Connector, you can follow the examples below:
+
+### Get the ID value of a dropdown custom field for a specific record type
+
+Use the `get_select_value_id` method to retrieve the ID value of a dropdown custom field.
+
+Parameters:
+- `value`: The value of the dropdown option.
+- `custom field name`: The name of the custom field.
+- `record_type`: The record type in which the custom field is defined.
+
+```python
+id = soap_connector.get_select_value_id(
+    "To Be Determined",
+    "custbody_carrier_other",
+    record_type="salesOrder"
+)
+```
+
+This method will return the ID value associated with the specified dropdown option.
+
+### Get a record by its internal ID
+
+Use the `get_record` method to retrieve a record by its internal ID.
+
+Parameters:
+- `record_type`: The type of the record.
+- `internalId`: The internal ID of the record.
+
+```python
+record = soap_connector.get_record(
+    "purchaseOrder",
+    "11234567"
+)
+```
+
+This method will return the record object corresponding to the specified record type and internal ID.
+
+### Get transactions
+
+Retrieve transactions based on the cut date and other parameters.
+
+Parameters:
+- `record_type`: The transaction record type.
+- `kwargs`: Additional parameters for filtering and customization.
+
+```python
+kwargs = {
+    "cut_date": "2022-08-22 17:19:00",
+    "limit": 100,
+    "hours": 0.25,
+    "inventory_detail": True,
+    "subsidiary": "ABC",
+}
+
+transactions = soap_connector.get_transactions(
+    "itemReceipt", **kwargs
+)
+```
+
+This method will retrieve transactions of the specified record type based on the provided parameters.
+
+### Get items
+
+Retrieve items based on the cut date and other parameters.
+
+Parameters:
+- `record_type`: The item record type.
+- `kwargs`: Additional parameters for filtering and customization.
+
+```python
+kwargs = {
+    "cut_date": "2022-02-04T16:00:00+00:00",
+    "limit": 100,
+    "hours": 1000,
+    "subsidiary": "ABC",
+    "item_types": [
+        "inventoryItem",
+        "lotNumberedInventoryItem",
+    ],
+    "custom_fields": {
+        "custitem3": "kg",
+    },
+}
+
+items = soap_connector.get_items("inventoryLot", **kwargs)
+```
+
+This method will retrieve items of the specified record type based on the provided parameters.
+
+### Get persons
+
+Retrieve persons based on the cut date and other parameters.
+
+Parameters:
+- `record_type`: The person record type.
+- `kwargs`: Additional parameters for filtering and customization.
+
+```python
+kwargs = {
+    "cut_date": "2022-02-04T16:00:00+00:00",
+    "limit": 100,
+    "hours": 0.5,
+    "subsidiary": "ABC",
+}
+
+persons = soap_connector.get_persons("customer", **kwargs)
+```
+
+This method will retrieve persons of the specified record type based on the provided parameters.
+
+**Parameters in `kwargs` for `get_transactions`, `get_items`, and `get_persons`:**
+
+- `cut_date`: The last run of the cut date. Format: YYYY-MM-DD HH:MM:SS.
+- `limit`: The limit amount of records to be retrieved.
+- `hours`: The period from the cut date in hours.
+- `inventory_detail` (for `get_transactions`): Boolean value indicating whether to retrieve the detail of inventory information.
+- `subsidiary`: The subsidiary of the company.
+- `item_types` (for `get_items`): List of item record types to be retrieved.
+- `custom_fields` (for `get_items`): Dictionary of custom fields and their values to be used as conditions for retrieving data.
