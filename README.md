@@ -1,1 +1,380 @@
-# suitetalk_connector
+## Introduction
+
+The **SuiteTalk Connector** is a robust integration tool that empowers developers to seamlessly connect and interact with the NetSuite ERP (Enterprise Resource Planning) system using web services. By leveraging the power of SuiteTalk API, the SuiteTalk Connector enables the automation of business processes, data synchronization, and the creation of custom integrations with NetSuite.
+
+The SuiteTalk Connector acts as a bridge between your application and NetSuite, simplifying the integration process and abstracting the complexities of interacting with the underlying SuiteTalk API. It provides a higher-level interface, allowing developers to focus on business logic rather than low-level API implementation details.
+
+### Key Features
+
+The SuiteTalk Connector offers the following key features:
+
+1. **Authentication**: The connector handles secure authentication with NetSuite, ensuring authorized access to the API using the appropriate credentials.
+
+2. **API Interaction**: It provides a simplified interface for making API requests to NetSuite, abstracting the underlying SOAP (Simple Object Access Protocol) communication and facilitating seamless integration with your application.
+
+3. **Data Mapping**: The connector simplifies the mapping and transformation of data between your application and NetSuite's data model, ensuring smooth data synchronization and integration.
+
+4. **Error Handling**: It includes comprehensive error handling mechanisms, allowing for robust error management and graceful recovery during API interactions.
+
+5. **Performance Optimization**: The connector incorporates optimizations to enhance performance, such as request batching, minimizing network round trips, and optimizing data retrieval and update operations.
+
+6. **Flexibility**: The SuiteTalk Connector is highly customizable and can be extended to accommodate specific integration requirements. It enables developers to build tailored solutions that align with their unique business processes.
+
+### Benefits of Using SuiteTalk Connector
+
+- **Streamlined Integration**: The connector simplifies the integration process, enabling efficient communication between your application and NetSuite.
+
+- **Customizability**: Developers can extend and customize the connector to meet specific integration needs and business requirements.
+
+- **Automation and Efficiency**: The integration capabilities offered by the connector automate business processes, improving efficiency and reducing manual effort.
+
+- **Real-Time Data Sync**: Achieve real-time data synchronization between your application and NetSuite, ensuring accurate and up-to-date information.
+
+By leveraging the SuiteTalk Connector, developers can unlock the full potential of NetSuite's API, enabling seamless integration, customization, and automation of business processes. Experience streamlined integration and harness the power of NetSuite with the SuiteTalk Connector.
+
+## Installation
+
+To install the SuiteTalk Connector using pip and Git, run the following command:
+
+```shell
+$ python -m pip install 'git+ssh://git@github.com/ideabosque/suitetalk_connector.git@main#egg=suitetalk_connector'
+
+## Configuration
+
+To configure the NetSuite SuiteTalk Connector, you'll need to set up the following files and environment variables:
+
+### .env File
+
+Create a `.env` file in the project directory with the following example configuration:
+
+```plaintext
+ACCOUNT=*******
+CONSUMER_KEY=****************************************************************
+CONSUMER_SECRET==****************************************************************
+TOKEN_ID==****************************************************************
+TOKEN_SECRET==****************************************************************
+```
+
+Replace the `*******` and `****************************************************************` placeholders with your actual NetSuite account ID, consumer key, consumer secret, token ID, and token secret.
+
+### netsuitemappings_soap.json File
+
+Create a `netsuitemappings_soap.json` file in the project directory with the appropriate mappings for the desired transaction types, attributes, and data types. Here is an example configuration:
+
+```json
+{
+  "transaction_attributes": [
+    "entity",
+    "email",
+    "salesRep",
+    "subsidiary",
+    "customForm",
+    "class",
+    "location",
+    "billingAddress",
+    "shippingAddress",
+    "pnRefNum",
+    "otherRefNum",
+    "source",
+    "memo",
+    "message",
+    "shipDate",
+    "shippingCost",
+    "terms",
+    "paymentMethod",
+    "shipMethod",
+    "itemList",
+    "shipDate",
+    "tranDate",
+    "orderStatus",
+    "customFieldList",
+    "status",
+    "createdFrom"
+  ],
+  "transaction_data_type": {
+    "salesOrder": "ns19:SalesOrder",
+    "opportunity": "ns19:Opportunity",
+    "estimate": "ns19:Estimate",
+    "returnAuthorization": "ns23:ReturnAuthorization"
+  },
+  "transaction_item_data_type": {
+    "salesOrder": "ns19:SalesOrderItem",
+    "opportunity": "ns19:OpportunityItem",
+    "estimate": "ns19:EstimateItem",
+    "returnAuthorization": "ns23:ReturnAuthorizationItem"
+  },
+  "transaction_item_list_data_type": {
+    "salesOrder": "ns19:SalesOrderItemList",
+    "opportunity": "ns19:OpportunityItemList",
+    "estimate": "ns19:EstimateItemList",
+    "returnAuthorization": "ns23:ReturnAuthorizationItemList"
+  },
+  "person_data_type": {
+    "customer": "ns13:Customer",
+    "contact": "ns13:Contact"
+  },
+  "person_addressbook_list_data_type": {
+    "customer": "ns13:CustomerAddressbookList"
+  },
+  "person_addressbook_data_type": {
+    "customer": "ns13:CustomerAddressbook"
+  },
+  "item_data_type": {
+    "inventoryItem": "ns17:InventoryItem",
+    "nonInventoryResaleItem": "ns17:NonInventoryResaleItem",
+    "lotNumberedInventoryItem": "ns17:LotNumberedInventoryItem"
+  },
+  "lookup_join_fields": {
+    "itemFulfillment": {
+      "base": [
+        "@|custbody_bol_id",
+        "@|custbody_bol_number",
+        "fulfill_last_modified_date|lastModifiedDate",
+        "fulfill_internal_id|internalId",
+        "fulfill_ship_status|shipStatus"
+      ],
+      "lines": [
+        "serial_numbers|serialNumbers"
+      ],
+      "created_from_types": [
+        "salesOrder"
+      ]
+    },
+    "invoice": {
+      "base": [
+        "invoice_tran_id|tranId",
+        "invoice_status|status",
+        "invoice_tran_date|tranDate",
+        "invoice_total|total"
+      ],
+      "lines": [],
+      "created_from_types": [
+        "salesOrder"
+      ]
+    },
+    "vendorBill": {
+      "base": [
+        "transaction_number|transactionNumber",
+        "due_date|dueDate",
+        "erp_bill_ref|internalId"
+      ],
+      "lines": [],
+      "created_from_types": [
+        "purchaseOrder"
+      ]
+    },
+    "itemReceipt": {
+      "base": [
+        "receipt_internal_id|internalId",
+        "receipt_created_date|createdDate"
+      ],
+      "lines": [],
+      "created_from_types": [
+        "purchaseOrder"
+      ]
+    },
+    "returnAuthorization": {
+      "created_from_lookup_type": "salesOrder"
+    }
+  },
+  "lookup_record_fields": {
+    "salesOrder": {
+      "field": "custbody_pct_so_ecomso",
+      "search_data_type": "ns5:TransactionSearchBasic"
+    },
+    "opportunity": {
+      "field": "custbody_bid_reference",
+      "search_data_type": "ns5:TransactionSearchBasic"
+    },
+    "estimate": {
+      "field": "otherRefNum",
+      "search_data_type": "ns5:TransactionSearchBasic"
+    },
+    "returnAuthorization": {
+      "field": "custbody_rma_reference",
+     
+
+ "search_data_type": "ns5:TransactionSearchBasic"
+    },
+    "inventoryItem": {
+      "field": "itemId",
+      "search_data_type": "ns5:ItemSearchBasic"
+    },
+    "lotNumberedInventoryItem": {
+      "field": "itemId",
+      "search_data_type": "ns5:ItemSearchBasic"
+    },
+    "customer": {
+      "field": "entityId",
+      "search_data_type": "ns5:CustomerSearchBasic"
+    },
+    "contact": {
+      "field": "entityId",
+      "search_data_type": "ns5:ContactSearchBasic"
+    },
+    "vendor": {
+      "field": "entityId",
+      "search_data_type": "ns5:VendorSearchBasic"
+    },
+    "subsidiary": {
+      "field": "name",
+      "search_data_type": "ns5:SubsidiarySearchBasic"
+    },
+    "location": {
+      "field": "name",
+      "search_data_type": "ns5:LocationSearchBasic"
+    },
+    "classification": {
+      "field": "name",
+      "search_data_type": "ns5:ClassificationSearchBasic"
+    },
+    "employee": {
+      "field": "entityId",
+      "search_data_type": "ns5:EmployeeSearchBasic"
+    },
+    "priceLevel": {
+      "field": "name",
+      "search_data_type": "ns5:PriceLevelSearchBasic"
+    },
+    "inventoryNumber": {
+      "field": "inventoryNumber",
+      "search_data_type": "ns5:InventoryNumberSearchBasic"
+    }
+  },
+  "lookup_select_values": {
+    "terms": {
+      "values": {
+        "Net 10": "1",
+        "Net 15": "2",
+        "Net 20": "3"
+      }
+    },
+    "paymentMethod": {
+      "values": {
+        "ACH": "1",
+        "American Express": "2",
+        "Cash": "3",
+        "Check": "4",
+        "Discover": "5",
+        "Master Card": "6",
+        "VISA": "7",
+        "Wire": "8"
+      }
+    },
+    "taxSchedule": {},
+    "customForm": {},
+    "shipMethod": {
+      "values": {
+        "Truck": "1",
+        "UPS": "2",
+        "UPS 2nd Day Air®": "3",
+        "UPS Next Day Air®": "4",
+        "UPS Next Day Air® Early A.M.®": "5",
+        "UPS® Ground": "6"
+      },
+      "record_type": "shipItem",
+      "field": "displayName"
+    },
+    "salesRep": {
+      "record_type": "employee",
+      "field": "entityId"
+    },
+    "class": {
+      "record_type": "classification",
+      "field": "name"
+    },
+    "subsidiary": {
+      "record_type": "subsidiary",
+      "field": "name"
+    },
+    "location": {
+      "record_type": "location",
+      "field": "name"
+    },
+    "custbody_delivery_option": {
+      "values": {
+        "Standard": "4",
+        "Premium": "5",
+        "Expedited": "6"
+      }
+    },
+    "custentityyyy": {
+      "record_type": "customlist_yyyy_list",
+      "field": "name"
+    },
+    "custentity_program_sales_rep": {
+      "record_type": "employee",
+      "field": "entityId"
+    },
+    "custentityxxx": {
+      "record_type": "customlistxxx",
+      "field": "name"
+    }
+  },
+  "custom_records": {
+    "customrecord_shipping_carrier": "111"
+  },
+  "item_detail_record_types": [
+    "purchaseOrder",
+    "returnAuthorization"
+  ],
+  "inventory_detail_record_types": [
+    "purchaseOrder",
+    "itemReceipt",
+    "itemFulfillment",
+    "salesOrder",
+    "returnAuthorization"
+  ],
+  "update_exception_record_types": [
+    "salesOrder",
+    "returnAuthorization"
+  ]
+}
+```
+
+Make sure to customize the configuration based on your requirements.
+
+### Sample Configuration
+
+Here is a sample configuration file that loads the environment variables and sets up the NetSuite SuiteTalk Connector:
+
+```python
+import logging
+import os
+import sys
+import json
+from dotenv import load_dotenv
+from suitetalk_connector import SOAPConnector
+
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logger = logging.getLogger()
+
+load_dotenv()
+setting = {
+    "ACCOUNT": os.getenv("ACCOUNT"),
+    "CONSUMER_KEY": os.getenv("CONSUMER_KEY"),
+    "CONSUMER_SECRET": os.getenv("CONSUMER_SECRET"),
+    "TOKEN_ID": os.getenv("TOKEN_ID"),
+    "TOKEN_SECRET": os.getenv("TOKEN_SECRET"),
+    "VERSION": "2021_2_0",
+    "TIMEZONE": "America/Los_Angeles",
+    "NETSUITEMAPPINGS": json.load(
+        open(
+            f"{os.path.abspath(os.path.dirname(__file__))}/netsuitemappings_soap.json",
+            "r",
+        )
+    )
+}
+
+soap_connector = SOAPConnector(logger, **setting)
+```
+
+Ensure that you have the required Python packages installed, including `dotenv`. You can install them using the following command:
+
+```shell
+$ python -m pip install dotenv
+```
+
+Make sure to replace the path to the `netsuitemappings_soap.json` file with the appropriate location in your project directory.
+
+With this configuration, you can now use the `soap_connector` object to interact with the NetSuite SuiteTalk API.
