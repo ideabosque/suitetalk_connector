@@ -8,7 +8,7 @@ from setuptools import find_packages, setup
 setup(
     name="SuiteTalk-Connector",
     version="0.0.1",
-    # url='https://github.com/ideabosque/SuiteTalk-Connector',
+    url="https://github.com/ideabosque/suitetalk_connector",
     license="MIT",
     author="Idea Bosque",
     author_email="ideabosque@gmail.com",
