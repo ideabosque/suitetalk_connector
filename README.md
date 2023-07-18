@@ -331,7 +331,22 @@ Create a `netsuitemappings_soap.json` file in the project directory with the app
 }
 ```
 
-Make sure to customize the configuration based on your requirements.
+**Parameters:**
+- `transaction_attributes`: This parameter specifies the list of attributes that will be used for any transaction in the NetSuite system.
+- `transaction_data_type`: This parameter defines the SOAP data type associated with each transaction type in NetSuite. It specifies the data type used to represent the transaction data.
+- `transaction_item_data_type`: This parameter determines the SOAP data type associated with the items within a transaction. It indicates the data type used to represent individual items in a transaction.
+- `transaction_item_list_data_type`: This parameter indicates the SOAP data type for the list of items within a transaction. It specifies the data type used to represent the collection of items in a transaction.
+- `person_data_type`: This parameter defines the SOAP data type for person-related records, such as customers and contacts, in NetSuite.
+- `person_addressbook_data_type`: This parameter specifies the SOAP data type for the address book of a person, typically used for customers or contacts in NetSuite.
+- `person_addressbook_list_data_type`: This parameter indicates the SOAP data type for the list of address books associated with a person, usually used for customers or contacts in NetSuite.
+- `item_data_type`: This parameter determines the SOAP data type for various item types in NetSuite, such as inventory items, non-inventory resale items, and lot-numbered inventory items.
+- `lookup_join_fields`: This parameter includes configurations for joining related records in NetSuite. It defines how different records are linked together in search results.
+- `lookup_record_fields`: This parameter contains configurations for field mappings when looking up records in NetSuite. It specifies the fields used for searching and linking records.
+- `lookup_select_values`: This parameter provides configurations for select field values in NetSuite. It defines the possible values and their corresponding internal IDs for specific fields.
+- `custom_records`: This parameter contains configurations for custom records in NetSuite. It specifies the internal IDs of custom records that can be used in the integration.
+- `item_detail_record_types`: This parameter lists the record types in NetSuite that have detailed information about items. For example, purchase orders and return authorizations may have additional item details.
+- `inventory_detail_record_types`: This parameter lists the record types in NetSuite that have detailed information about inventory-related transactions, such as purchase orders, item receipts, item fulfillments, sales orders, and return authorizations.
+- `update_exception_record_types`: This parameter lists the record types in NetSuite that have exceptions when updating records. These record types may require special handling during the integration process.
 
 ### Sample Configuration
 
