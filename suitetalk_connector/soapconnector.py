@@ -1424,8 +1424,6 @@ class SOAPConnector(object):
                         "employee", record.salesRep.internalId
                     )
                 persons.append(record)
-            return persons
-
         return persons
 
     def get_inventory_numbers(self, **kwargs):
