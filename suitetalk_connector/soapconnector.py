@@ -858,12 +858,15 @@ class SOAPConnector(object):
         transaction.update({"entity": RecordRef(internalId=customer.internalId)})
 
         # Get lookup select values.
-        transaction = self.get_lookup_select_values(
-            {
-                key: value
-                for key, value in transaction.items()
-                if key in self.transaction_attributes
-            }
+        transaction = dict(
+            transaction,
+            **self.get_lookup_select_values(
+                {
+                    key: value
+                    for key, value in transaction.items()
+                    if key in self.transaction_attributes
+                }
+            ),
         )
 
         # Replace the term with the customer term.
