@@ -8,6 +8,7 @@ import re
 from datetime import datetime, timedelta
 from pytz import timezone
 from .soapadaptor import SOAPAdaptor
+from functools import reduce
 
 datetime_format = "%m/%d/%Y %H:%M:%S"
 datetime_format_regex = re.compile(r"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}$")
@@ -301,12 +302,25 @@ class SOAPConnector(object):
         return None
 
     def get_record_by_variables(self, record_type, **kwargs):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        record_lookup = self.lookup_record_fields.get(record_type)
+
+        ## Lookup the record by internalId if the internalId is provided.
         if kwargs.get("id"):
             return self.get_record(record_type, kwargs.get("id"))
-        if kwargs.get("externalId"):
-            return self.get_record(record_type, kwargs.get("id"), use_external_id=True)
 
-        record_lookup = self.lookup_record_fields.get(record_type)
+        ## Lookup the record by externalId if the externalId is provided.
+        if kwargs.get("externalId"):
+            variables = {
+                "record_type": record_type,
+                "search_data_type": record_lookup["search_data_type"],
+                "field": "externalId",
+                "value": [RecordRef(externalId=kwargs.get("externalId"))],
+                "operator": "anyOf",
+            }
+            return self.get_record_by_lookup(**variables)
+
+        ## Lookup the record by custom field if the custom field is provided.
         if kwargs.get(record_lookup["field"]):
             variables = {
                 "record_type": record_type,
@@ -647,6 +661,175 @@ class SOAPConnector(object):
             return matched_obj["addr"]
         return None
 
+    def get_customer(self, ext_customer_id, ns_customer_id, entity):
+        customer = self.get_record_by_variables(
+            "customer",
+            **{
+                "externalId": ext_customer_id,
+                self.lookup_record_fields["customer"]["field"]: ns_customer_id,
+            },
+        )
+        if customer is not None:
+            self.logger.info(
+                f"Customer: {customer.email}/{customer.internalId} by {ns_customer_id}/{ext_customer_id}."
+            )
+            return customer
+
+        ## Create customer if CREATE_CUSTOMER is True.
+        if self.setting.get("CREATE_CUSTOMER", False):
+            _customer = {
+                {
+                    "email": entity.get("email"),
+                    "addresses": [entity.get("billingAddress")],
+                    "externalId": ext_customer_id,
+                    "subsidiary": entity.get("subsidiary"),
+                    "entityStatus": entity.get("entityStatus"),
+                }
+            }
+            if entity.get("firstName") and entity.get("lastName"):
+                _customer.update(
+                    {
+                        "isPerson": True,
+                        "firstName": entity.get("firstName"),
+                        "lastName": entity.get("lastName"),
+                    }
+                )
+            elif entity.get("companyName"):
+                _customer.update(
+                    {
+                        "isPerson": False,
+                        "companyName": entity.get("companyName"),
+                    }
+                )
+            else:
+                raise Exception("Miss variables to create a customer!!!")
+
+            customer = self.get_record(
+                "customer", self.insert_update_person("customer", _customer)
+            )
+
+            self.logger.info(
+                f"Customer: {customer.email}/{customer.internalId} by {ns_customer_id}/{ext_customer_id}."
+            )
+            return customer
+
+        raise Exception(
+            f"Cannot find the customer with entity_id ({ns_customer_id}), or external_id ({ext_customer_id})."
+        )
+
+    ## GET lookup select values for the entity.
+    ##
+    ## @param entity: The entity.
+    ## @return: The entity with the lookup select values.
+    def get_lookup_select_values(self, entity):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        entity = list(
+            map(
+                lambda key: {
+                    key: RecordRef(
+                        internalId=self.get_select_value_id(entity[key], key)
+                    ),
+                }
+                if key
+                in self.setting["NETSUITEMAPPINGS"]["lookup_select_values"].keys()
+                else {key: entity[key]},
+                entity.keys(),
+            )
+        )
+        entity = reduce(lambda x, y: dict(x, **y), entity)
+        return entity
+
+    def insert_update_task(self, record_type, task):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        CustomFieldList = self.get_data_type("ns0:CustomFieldList")
+        TaskContactList = self.get_data_type("ns7:TaskContactList")
+        TaskContact = self.get_data_type("ns7:TaskContact")
+        Task = self.get_data_type("ns7:Task")
+
+        # Get/Create the customer for the company.
+        ext_customer_id = task.pop("extCustomerId", None)
+        ns_customer_id = task.pop("nsCustomerId", None)
+        customer = self.get_customer(ext_customer_id, ns_customer_id, task)
+        task.update({"company": RecordRef(internalId=customer.internalId)})
+
+        # Get lookup select values.
+        task = self.get_lookup_select_values(task)
+
+        # Lookup contact list.
+        contact_customers = [
+            self.get_customer(
+                contact.pop("extCustomerId", None),
+                contact.pop("nsCustomerId", None),
+                contact,
+            )
+            for contact in task.pop("contacts", [])
+        ]
+
+        task_contacts = list(
+            map(
+                lambda contact_customer: TaskContact(
+                    **{"company": RecordRef(internalId=contact_customer.internalId)}
+                )
+                if contact_customer.isPerson == False
+                else TaskContact(
+                    **{"contact": RecordRef(internalId=contact_customer.internalId)}
+                ),
+                contact_customers,
+            )
+        )
+
+        task.update(
+            {"contactList": TaskContactList(contact=task_contacts, replaceAll=True)}
+        )
+
+        # Task Custom Fields
+        _custom_fields = task.pop("customFields")
+        custom_fields = self.get_custom_fields(_custom_fields, "task")
+        if len(custom_fields) != 0:
+            task.update({"customFieldList": CustomFieldList(customField=custom_fields)})
+
+        # Lookup transaction.
+        record_lookup = self.lookup_record_fields.get(record_type)
+        record_lookup_value = task.get(record_lookup["field"])
+        if record_lookup_value is None:
+            record_lookup_value = _custom_fields.get(record_lookup["field"])
+        record = self.get_record_by_variables(
+            record_type,
+            **{record_lookup["field"]: record_lookup_value},
+        )
+        task.update(
+            {
+                "transaction": RecordRef(
+                    internalId=record.internalId,
+                    type=record_type,
+                )
+            }
+        )
+
+        self.logger.info(task)
+
+        record_lookup = self.lookup_record_fields.get("task")
+        record_lookup_value = task.get(record_lookup["field"])
+        if record_lookup_value is None:
+            record_lookup_value = _custom_fields.get(record_lookup["field"])
+        record = self.get_record_by_variables(
+            "task",
+            **{record_lookup["field"]: record_lookup_value},
+        )
+
+        if record:
+            task.update({"internalId": record.internalId})
+            self.update(Task(**task))
+        else:
+            record = self.add(Task(**task))
+            record = self.get_record("task", record.internalId)
+
+        return record.internalId
+
+    ## Insert/Update a transaction.
+    ##
+    ## @param record_type: The record type.
+    ## @param transaction: The transaction.
     def insert_update_transaction(self, record_type, transaction):
         RecordRef = self.get_data_type("ns0:RecordRef")
         CustomFieldList = self.get_data_type("ns0:CustomFieldList")
@@ -669,72 +852,19 @@ class SOAPConnector(object):
         notes = transaction.get("notes")
 
         # Get/Create the customer.
-        extCustomerId = transaction.pop("extCustomerId", None)
-        nsCustomerId = transaction.pop("nsCustomerId", None)
-        customer = self.get_record_by_variables(
-            "customer",
-            **{
-                "externalId": extCustomerId,
-                self.lookup_record_fields["customer"]["field"]: nsCustomerId,
-            },
-        )
-        if customer is None:
-            if self.setting.get("CREATE_CUSTOMER", False):
-                ## Create customer.
-                _customer = {
-                    {
-                        "email": transaction.get("email"),
-                        "addresses": [transaction.get("billingAddress")],
-                        "externalId": extCustomerId,
-                        "subsidiary": transaction.get("subsidiary"),
-                        "entityStatus": transaction.get("entityStatus"),
-                    }
-                }
-                if transaction.get("firstName") and transaction.get("lastName"):
-                    _customer.update(
-                        {
-                            "isPerson": True,
-                            "firstName": transaction.get("firstName"),
-                            "lastName": transaction.get("lastName"),
-                        }
-                    )
-                elif transaction.get("companyName"):
-                    _customer.update(
-                        {
-                            "isPerson": False,
-                            "companyName": transaction.get("companyName"),
-                        }
-                    )
-                else:
-                    raise Exception("Miss variables to create a customer!!!")
-
-                customer = self.get_record(
-                    "customer", self.insert_update_person("customer", _customer)
-                )
-            else:
-                raise Exception(
-                    f"Cannot find the customer with entity_id ({extCustomerId}), or external_id ({extCustomerId})."
-                )
-
-        self.logger.info(
-            f"Customer: {customer.email}/{customer.internalId} by {nsCustomerId}/{extCustomerId}."
-        )
+        ext_customer_id = transaction.pop("extCustomerId", None)
+        ns_customer_id = transaction.pop("nsCustomerId", None)
+        customer = self.get_customer(ext_customer_id, ns_customer_id, transaction)
         transaction.update({"entity": RecordRef(internalId=customer.internalId)})
 
-        # Lookup select values.
-        for key, value in transaction.items():
-            if key in self.transaction_attributes:
-                if (
-                    key
-                    not in self.setting["NETSUITEMAPPINGS"][
-                        "lookup_select_values"
-                    ].keys()
-                ):
-                    continue
-
-                id = self.get_select_value_id(value, key, record_type=record_type)
-                if id:
-                    transaction.update({key: RecordRef(internalId=id)})
+        # Get lookup select values.
+        transaction = self.get_lookup_select_values(
+            {
+                key: value
+                for key, value in transaction.items()
+                if key in self.transaction_attributes
+            }
+        )
 
         # Replace the term with the customer term.
         if (
@@ -1022,7 +1152,6 @@ class SOAPConnector(object):
         return record.tranId
 
     def insert_update_person(self, record_type, person):
-        RecordRef = self.get_data_type("ns0:RecordRef")
         PersonAddressbookList = self.get_data_type(
             self.person_addressbook_list_data_type.get(record_type)
         )
@@ -1034,17 +1163,8 @@ class SOAPConnector(object):
 
         self.logger.info(person)
 
-        # Lookup select values.
-        for key, value in person.items():
-            if (
-                key
-                not in self.setting["NETSUITEMAPPINGS"]["lookup_select_values"].keys()
-            ):
-                continue
-
-            id = self.get_select_value_id(value, key, record_type=record_type)
-            if id:
-                person.update({key: RecordRef(internalId=id)})
+        # Get lookup select values.
+        person = self.get_lookup_select_values(person)
 
         person.update({"isPerson": person.get("isPerson", True)})
         if person.get("nsCustomerId"):
@@ -1125,16 +1245,8 @@ class SOAPConnector(object):
             },
         )
 
-        # Lookup select values.
-        for key, value in item.items():
-            if (
-                key
-                not in self.setting["NETSUITEMAPPINGS"]["lookup_select_values"].keys()
-            ):
-                continue
-
-            id = self.get_select_value_id(value, key, record_type=record_type)
-            item.update({key: RecordRef(internalId=id)})
+        # Get lookup select values.
+        item = self.get_lookup_select_values(item)
 
         # Lookup Subsidiaries.
         if item.get("subsidiaries"):
