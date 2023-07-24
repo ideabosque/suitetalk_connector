@@ -836,7 +836,7 @@ class SOAPConnector(object):
     ## @param items: The items.
     ## @param pricelevel: The price level.
     ## @return: The transaction items and message.
-    def get_transaction_items(self, record_type, items, pricelevel=None):
+    def get_transaction_items(self, record_type, _items, pricelevel=None):
         RecordRef = self.get_data_type("ns0:RecordRef")
         CustomFieldList = self.get_data_type("ns0:CustomFieldList")
         TransactionItem = self.get_data_type(
@@ -853,15 +853,16 @@ class SOAPConnector(object):
         message = None
         transaction_items = []
 
+        pricelevel = None
         if pricelevel:
             pricelevel = self.get_record_by_variables(
                 "priceLevel", **{"name": pricelevel}
             )
-        for item in items:
-            sku = item.get("sku")
-            qty = item.get("qty")
-            commit_inventory = item.get("commitInventory")
-            lot_no_locs = item.get("lot_no_locs")
+        for _item in _items:
+            sku = _item.get("sku")
+            qty = _item.get("qty")
+            commit_inventory = _item.get("commitInventory")
+            lot_no_locs = _item.get("lot_no_locs")
             item = self.get_record_by_variables(
                 "inventoryItem", **{"itemId": sku, "operator": "is"}
             )
@@ -871,9 +872,9 @@ class SOAPConnector(object):
                     quantity=qty,
                 )
 
-                if item.get("location"):
+                if _item.get("location"):
                     location = self.get_record_by_variables(
-                        "location", **{"name": item.get("location")}
+                        "location", **{"name": _item.get("location")}
                     )
                     transaction_item.location = RecordRef(
                         internalId=location.internalId
@@ -902,8 +903,8 @@ class SOAPConnector(object):
                             key=lambda p: p["value"],
                         )
                         difference = (
-                            float(_price["value"]) - float(item["price"])
-                            if item.get("price") is not None
+                            float(_price["value"]) - float(_item["price"])
+                            if _item.get("price") is not None
                             else 0
                         )  # If there is no price in the line item of the order, the price of the product will be used.
 
@@ -912,17 +913,17 @@ class SOAPConnector(object):
                             internalId=pricelevel.internalId
                         )
 
-                if difference != 0 and item.get("price") is not None:
+                if difference != 0 and _item.get("price") is not None:
                     transaction_item.price = RecordRef(internalId=-1)
-                    transaction_item.rate = item["price"]
+                    transaction_item.rate = _item["price"]
 
                 # Calculate the subtotal for each line item.
-                if item.get("price") is not None:
-                    transaction_item.amount = float(qty) * float(item["price"])
+                if _item.get("price") is not None:
+                    transaction_item.amount = float(qty) * float(_item["price"])
 
                 # Item Custom Fields
                 item_custom_fields = self.get_custom_fields(
-                    record_type, item.pop("customFields", {}), sublist="itemList"
+                    _item.pop("customFields", {}), record_type, sublist="itemList"
                 )
                 if len(item_custom_fields) != 0:
                     transaction_item.customFieldList = CustomFieldList(
