@@ -923,7 +923,7 @@ class SOAPConnector(object):
 
                 # Item Custom Fields
                 item_custom_fields = self.get_custom_fields(
-                    _item.pop("customFields", {}), record_type, sublist="itemList"
+                    record_type, _item.pop("customFields", {}), sublist="itemList"
                 )
                 if len(item_custom_fields) != 0:
                     transaction_item.customFieldList = CustomFieldList(
