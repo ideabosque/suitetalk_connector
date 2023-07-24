@@ -279,7 +279,7 @@ class SOAPAdaptor(object):
             return response.body.getSelectValueResult.baseRefList.baseRef
         return None
 
-    def get_select_values(self, field, record_type, sublist=None):
+    def get_select_values(self, record_type, field, sublist=None):
         GetSelectValueFieldDescription = self.get_data_type(
             "ns0:GetSelectValueFieldDescription"
         )
