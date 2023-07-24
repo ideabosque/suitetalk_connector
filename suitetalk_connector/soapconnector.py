@@ -338,7 +338,7 @@ class SOAPConnector(object):
 
         raise Exception("Miss required variables!!!")
 
-    def get_custom_fields(self, _custom_fields, record_type, sublist=None):
+    def get_custom_fields(self, record_type, _custom_fields, sublist=None):
         StringCustomFieldRef = self.get_data_type("ns0:StringCustomFieldRef")
         BooleanCustomFieldRef = self.get_data_type("ns0:BooleanCustomFieldRef")
         DateCustomFieldRef = self.get_data_type("ns0:DateCustomFieldRef")
@@ -739,6 +739,10 @@ class SOAPConnector(object):
         entity = reduce(lambda x, y: dict(x, **y), entity)
         return entity
 
+    ## Insert/Update a task.
+    ##
+    ## @param record_type: The record type.
+    ## @param task: The task.
     def insert_update_task(self, record_type, task):
         RecordRef = self.get_data_type("ns0:RecordRef")
         CustomFieldList = self.get_data_type("ns0:CustomFieldList")
@@ -783,8 +787,8 @@ class SOAPConnector(object):
         )
 
         # Task Custom Fields
-        _custom_fields = task.pop("customFields")
-        custom_fields = self.get_custom_fields(_custom_fields, "task")
+        _custom_fields = task.pop("customFields", {})
+        custom_fields = self.get_custom_fields("task", _custom_fields)
         if len(custom_fields) != 0:
             task.update({"customFieldList": CustomFieldList(customField=custom_fields)})
 
@@ -826,11 +830,13 @@ class SOAPConnector(object):
 
         return record.internalId
 
-    ## Insert/Update a transaction.
+    ## Get transaction items.
     ##
     ## @param record_type: The record type.
-    ## @param transaction: The transaction.
-    def insert_update_transaction(self, record_type, transaction):
+    ## @param items: The items.
+    ## @param pricelevel: The price level.
+    ## @return: The transaction items and message.
+    def get_transaction_items(self, record_type, items, pricelevel=None):
         RecordRef = self.get_data_type("ns0:RecordRef")
         CustomFieldList = self.get_data_type("ns0:CustomFieldList")
         TransactionItem = self.get_data_type(
@@ -842,55 +848,20 @@ class SOAPConnector(object):
         InventoryDetail = self.get_data_type("ns5:InventoryDetail")
         InventoryAssignmentList = self.get_data_type("ns5:InventoryAssignmentList")
         InventoryAssignment = self.get_data_type("ns5:InventoryAssignment")
-        TransactionItemList = self.get_data_type(
-            self.transaction_item_list_data_type.get(record_type)
-        )
-        SalesOrderOrderStatus = self.get_data_type("ns20:SalesOrderOrderStatus")
-
-        self.logger.info(transaction)
-        payment_method = transaction.get("paymentMethod")
-        notes = transaction.get("notes")
-
-        # Get/Create the customer.
-        ext_customer_id = transaction.pop("extCustomerId", None)
-        ns_customer_id = transaction.pop("nsCustomerId", None)
-        customer = self.get_customer(ext_customer_id, ns_customer_id, transaction)
-        transaction.update({"entity": RecordRef(internalId=customer.internalId)})
-
-        # Get lookup select values.
-        transaction = dict(
-            transaction,
-            **self.get_lookup_select_values(
-                {
-                    key: value
-                    for key, value in transaction.items()
-                    if key in self.transaction_attributes
-                }
-            ),
-        )
-
-        # Replace the term with the customer term.
-        if (
-            customer.terms
-            and transaction.get("terms") is None
-            and record_type in ["salesOrder", "estimate"]
-        ):
-            transaction.update({"terms": customer.terms})
 
         # Items
         message = None
         transaction_items = []
 
-        pricelevel = None
-        if transaction.get("priceLevel"):
+        if pricelevel:
             pricelevel = self.get_record_by_variables(
-                "priceLevel", **{"name": transaction.pop("priceLevel")}
+                "priceLevel", **{"name": pricelevel}
             )
-        for _item in transaction.pop("items"):
-            sku = _item.get("sku")
-            qty = _item.get("qty")
-            commit_inventory = _item.get("commitInventory")
-            lot_no_locs = _item.get("lot_no_locs")
+        for item in items:
+            sku = item.get("sku")
+            qty = item.get("qty")
+            commit_inventory = item.get("commitInventory")
+            lot_no_locs = item.get("lot_no_locs")
             item = self.get_record_by_variables(
                 "inventoryItem", **{"itemId": sku, "operator": "is"}
             )
@@ -900,9 +871,9 @@ class SOAPConnector(object):
                     quantity=qty,
                 )
 
-                if _item.get("location"):
+                if item.get("location"):
                     location = self.get_record_by_variables(
-                        "location", **{"name": _item.get("location")}
+                        "location", **{"name": item.get("location")}
                     )
                     transaction_item.location = RecordRef(
                         internalId=location.internalId
@@ -931,8 +902,8 @@ class SOAPConnector(object):
                             key=lambda p: p["value"],
                         )
                         difference = (
-                            float(_price["value"]) - float(_item["price"])
-                            if _item.get("price") is not None
+                            float(_price["value"]) - float(item["price"])
+                            if item.get("price") is not None
                             else 0
                         )  # If there is no price in the line item of the order, the price of the product will be used.
 
@@ -941,17 +912,17 @@ class SOAPConnector(object):
                             internalId=pricelevel.internalId
                         )
 
-                if difference != 0 and _item.get("price") is not None:
+                if difference != 0 and item.get("price") is not None:
                     transaction_item.price = RecordRef(internalId=-1)
-                    transaction_item.rate = _item["price"]
+                    transaction_item.rate = item["price"]
 
                 # Calculate the subtotal for each line item.
-                if _item.get("price") is not None:
-                    transaction_item.amount = float(qty) * float(_item["price"])
+                if item.get("price") is not None:
+                    transaction_item.amount = float(qty) * float(item["price"])
 
                 # Item Custom Fields
                 item_custom_fields = self.get_custom_fields(
-                    _item.pop("customFields", {}), record_type, sublist="itemList"
+                    record_type, item.pop("customFields", {}), sublist="itemList"
                 )
                 if len(item_custom_fields) != 0:
                     transaction_item.customFieldList = CustomFieldList(
@@ -1007,6 +978,101 @@ class SOAPConnector(object):
                 log = f"The item ({sku}) is removed since it cannot be found."
                 message = message + "\n" + log if message else log
                 self.logger.info(log)
+
+        return transaction_items, message
+
+    ## Insert a customer deposit.
+    ##
+    ## @param kwargs: The customer deposit.
+    def insert_customer_deposit(self, **kwargs):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        CustomerDeposit = self.get_data_type("ns23:CustomerDeposit")
+
+        if kwargs["payment"] == 0:
+            return
+
+        customer_deposit = {
+            "salesOrder": RecordRef(internalId=kwargs["sales_order_internal_id"]),
+            "customer": RecordRef(internalId=kwargs["customer_internal_id"]),
+            "tranDate": kwargs["tran_date"],
+            "subsidiary": kwargs["subsidiary"],
+            "paymentMethod": kwargs["payment_method"],
+            "customForm": RecordRef(
+                internalId=self.get_select_value_id(
+                    kwargs["custom_form"],
+                    "customForm",
+                    record_type="customerDeposit",
+                )
+            ),
+            "payment": kwargs["payment"],
+            "status": kwargs["status"],
+            "ccApproved": kwargs["cc_approved"],
+        }
+        self.add(CustomerDeposit(**customer_deposit))
+
+    ## Insert transaction notes.
+    ##
+    ## @param notes: The transaction notes.
+    def insert_transaction_notes(self, notes):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        Note = self.get_data_type("ns9:Note")
+        for note in notes:
+            self.add(
+                Note(
+                    title=note["title"],
+                    note=note["note"],
+                    transaction=RecordRef(internalId=note["transaction_internal_id"]),
+                )
+            )
+
+    ## Insert/Update a transaction.
+    ##
+    ## @param record_type: The record type.
+    ## @param transaction: The transaction.
+    def insert_update_transaction(self, record_type, transaction):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        CustomFieldList = self.get_data_type("ns0:CustomFieldList")
+        TransactionItemList = self.get_data_type(
+            self.transaction_item_list_data_type.get(record_type)
+        )
+        SalesOrderOrderStatus = self.get_data_type("ns20:SalesOrderOrderStatus")
+
+        self.logger.info(transaction)
+        payment_method = transaction.get("paymentMethod")
+        notes = transaction.get("notes")
+
+        # Get/Create the customer.
+        ext_customer_id = transaction.pop("extCustomerId", None)
+        ns_customer_id = transaction.pop("nsCustomerId", None)
+        customer = self.get_customer(ext_customer_id, ns_customer_id, transaction)
+        transaction.update({"entity": RecordRef(internalId=customer.internalId)})
+
+        # Get lookup select values.
+        transaction = dict(
+            transaction,
+            **self.get_lookup_select_values(
+                {
+                    key: value
+                    for key, value in transaction.items()
+                    if key in self.transaction_attributes
+                }
+            ),
+        )
+
+        # Replace the term with the customer term.
+        if (
+            customer.terms
+            and transaction.get("terms") is None
+            and record_type in ["salesOrder", "estimate"]
+        ):
+            transaction.update({"terms": customer.terms})
+
+        # Items
+        transaction_items, message = self.get_transaction_items(
+            record_type,
+            transaction.pop("items"),
+            pricelevel=transaction.pop("priceLevel", None),
+        )
 
         if message:
             transaction.update({"message": message})
@@ -1075,7 +1141,7 @@ class SOAPConnector(object):
 
         # Order Custom Fields
         _custom_fields = transaction.pop("customFields")
-        custom_fields = self.get_custom_fields(_custom_fields, record_type)
+        custom_fields = self.get_custom_fields(record_type, _custom_fields)
         if len(custom_fields) != 0:
             transaction.update(
                 {"customFieldList": CustomFieldList(customField=custom_fields)}
@@ -1108,49 +1174,38 @@ class SOAPConnector(object):
             if record_type == "salesOrder" and payment_method in self.setting.get(
                 "CREATE_CUSTOMER_DEPOSIT", []
             ):
-                payment = (
-                    sum([item.amount for item in record.itemList.item])
-                    + record.shippingCost
-                )
-                if payment > 0:
-                    CustomerDeposit = self.get_data_type("ns23:CustomerDeposit")
-                    customer_deposit = {
-                        "salesOrder": RecordRef(internalId=record.internalId),
-                        "customer": RecordRef(internalId=customer.internalId),
-                        "tranDate": transaction["tranDate"]
+                customer_deposit = {
+                    {
+                        "sales_order_internal_id": record.internalId,
+                        "customer_internal_id": customer.internalId,
+                        "tran_date": transaction["tranDate"]
                         if transaction.get("tranDate")
                         else current + timedelta(hours=24),
                         "subsidiary": transaction["subsidiary"],
-                        "paymentMethod": transaction["paymentMethod"],
-                        "customForm": RecordRef(
-                            internalId=self.get_select_value_id(
-                                "Standard Customer Deposit",
-                                "customForm",
-                                record_type="customerDeposit",
-                            )
+                        "payment_method": transaction["paymentMethod"],
+                        "custom_form": "Standard Customer Deposit",
+                        "payment": (
+                            sum([item.amount for item in record.itemList.item])
+                            + record.shippingCost
                         ),
-                        "payment": payment,
                         "status": "Fully Applied",
-                        "ccApproved": True,
+                        "cc_approved": True,
                     }
-                    self.add(CustomerDeposit(**customer_deposit))
+                }
+                self.insert_customer_deposit(**customer_deposit)
 
         # Add notes.
         if notes:
-            Note = self.get_data_type("ns9:Note")
-            for note in list(
-                filter(
-                    lambda x: x["memo"] is not None and x["memo"] != "",
-                    notes,
-                )
-            ):
-                self.add(
-                    Note(
-                        title=note["title"],
-                        note=note["memo"],
-                        transaction=RecordRef(internalId=record.internalId),
-                    )
-                )
+            notes = [
+                {
+                    "title": note["title"],
+                    "note": note["memo"],
+                    "transaction_internal_id": record.internalId,
+                }
+                for note in notes
+                if note["memo"] is not None and note["memo"] != ""
+            ]
+            self.insert_transaction_notes(notes)
 
         return record.tranId
 
@@ -1193,8 +1248,9 @@ class SOAPConnector(object):
         )
 
         # person Custom Fields
-        _custom_fields = person.pop("customFields")
-        custom_fields = self.get_custom_fields(_custom_fields, record_type)
+        custom_fields = self.get_custom_fields(
+            record_type, person.pop("customFields", {})
+        )
         if len(custom_fields) != 0:
             person.update(
                 {"customFieldList": CustomFieldList(customField=custom_fields)}
@@ -1301,8 +1357,9 @@ class SOAPConnector(object):
                 )
 
         # Item Custom Fields
-        _custom_fields = item.pop("customFields")
-        custom_fields = self.get_custom_fields(_custom_fields, record_type)
+        custom_fields = self.get_custom_fields(
+            record_type, item.pop("customFields", {})
+        )
         if len(custom_fields) != 0:
             item.update({"customFieldList": CustomFieldList(customField=custom_fields)})
 
