@@ -22,15 +22,21 @@ class RESTConnector(object):
         self.lookup_record_fields = setting["NETSUITEMAPPINGS"]["lookup_record_fields"]
         company_url = f"https://{self.setting['ACCOUNT'].lower().replace('_', '-')}.suitetalk.api.netsuite.com"
         self.rest_services = f"{company_url}/services/rest"
-        self.soap_adaptor = SOAPAdaptor(logger, **setting)
+        self._soap_adaptor = None
 
     @property
     def soap_adaptor(self):
+        if self._soap_adaptor is None:
+            self._soap_adaptor = SOAPAdaptor(self.logger, **self.setting)
         return self._soap_adaptor
 
     @soap_adaptor.setter
     def soap_adaptor(self, soap_adaptor):
         self._soap_adaptor = soap_adaptor
+
+    @soap_adaptor.deleter
+    def soap_adaptor(self):
+        del self._soap_adaptor
 
     def get_select_values(self, field, record_type, sublist=None):
         return self.soap_adaptor.get_select_values(field, record_type, sublist=sublist)

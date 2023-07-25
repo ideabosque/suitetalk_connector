@@ -51,15 +51,21 @@ class SOAPConnector(object):
         self.update_exception_record_types = setting["NETSUITEMAPPINGS"].get(
             "update_exception_record_types", []
         )
-        self.soap_adaptor = SOAPAdaptor(logger, **setting)
+        self._soap_adaptor = None
 
     @property
     def soap_adaptor(self):
+        if self._soap_adaptor is None:
+            self._soap_adaptor = SOAPAdaptor(self.logger, **self.setting)
         return self._soap_adaptor
 
     @soap_adaptor.setter
     def soap_adaptor(self, soap_adaptor):
         self._soap_adaptor = soap_adaptor
+
+    @soap_adaptor.deleter
+    def soap_adaptor(self):
+        del self._soap_adaptor
 
     def get_data_type(self, data_type):
         return self.soap_adaptor.get_data_type(data_type)
