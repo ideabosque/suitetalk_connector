@@ -77,6 +77,9 @@ class SOAPConnector(object):
             return
         return self.soap_adaptor.update(record)
 
+    def get_select_values(self, record_type, field, sublist=None):
+        return self.soap_adaptor.get_select_values(record_type, field, sublist=sublist)
+
     def get_select_value_id(self, value, field, record_type=None, sublist=None):
         try:
             if self.lookup_select_values[field].get(
@@ -91,9 +94,7 @@ class SOAPConnector(object):
                     value,
                 )
 
-            select_values = self.soap_adaptor.get_select_values(
-                record_type, field, sublist=sublist
-            )
+            select_values = self.get_select_values(record_type, field, sublist=sublist)
             id = select_values.get(value)
             assert (
                 id is not None
