@@ -727,13 +727,15 @@ class SOAPConnector(object):
     ##
     ## @param entity: The entity.
     ## @return: The entity with the lookup select values.
-    def get_lookup_select_values(self, entity):
+    def get_lookup_select_values(self, entity, record_type=None):
         RecordRef = self.get_data_type("ns0:RecordRef")
         entity = list(
             map(
                 lambda key: {
                     key: RecordRef(
-                        internalId=self.get_select_value_id(entity[key], key)
+                        internalId=self.get_select_value_id(
+                            entity[key], key, record_type=record_type
+                        )
                     ),
                 }
                 if key
@@ -763,7 +765,7 @@ class SOAPConnector(object):
         task.update({"company": RecordRef(internalId=customer.internalId)})
 
         # Get lookup select values.
-        task = self.get_lookup_select_values(task)
+        task = self.get_lookup_select_values(task, record_type="task")
 
         # Lookup contact list.
         contact_customers = [
@@ -1062,7 +1064,8 @@ class SOAPConnector(object):
                     key: value
                     for key, value in transaction.items()
                     if key in self.transaction_attributes
-                }
+                },
+                record_type=record_type,
             ),
         )
 
@@ -1229,7 +1232,7 @@ class SOAPConnector(object):
         self.logger.info(person)
 
         # Get lookup select values.
-        person = self.get_lookup_select_values(person)
+        person = self.get_lookup_select_values(person, record_type=record_type)
 
         person.update({"isPerson": person.get("isPerson", True)})
         if person.get("nsCustomerId"):
@@ -1312,7 +1315,7 @@ class SOAPConnector(object):
         )
 
         # Get lookup select values.
-        item = self.get_lookup_select_values(item)
+        item = self.get_lookup_select_values(item, record_type=record_type)
 
         # Lookup Subsidiaries.
         if item.get("subsidiaries"):
