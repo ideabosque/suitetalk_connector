@@ -1185,22 +1185,20 @@ class SOAPConnector(object):
                 "CREATE_CUSTOMER_DEPOSIT", []
             ):
                 customer_deposit = {
-                    {
-                        "sales_order_internal_id": record.internalId,
-                        "customer_internal_id": customer.internalId,
-                        "tran_date": transaction["tranDate"]
-                        if transaction.get("tranDate")
-                        else current + timedelta(hours=24),
-                        "subsidiary": transaction["subsidiary"],
-                        "payment_method": transaction["paymentMethod"],
-                        "custom_form": "Standard Customer Deposit",
-                        "payment": (
-                            sum([item.amount for item in record.itemList.item])
-                            + record.shippingCost
-                        ),
-                        "status": "Fully Applied",
-                        "cc_approved": True,
-                    }
+                    "sales_order_internal_id": record.internalId,
+                    "customer_internal_id": customer.internalId,
+                    "tran_date": transaction["tranDate"]
+                    if transaction.get("tranDate")
+                    else current + timedelta(hours=24),
+                    "subsidiary": transaction["subsidiary"],
+                    "payment_method": transaction["paymentMethod"],
+                    "custom_form": "Standard Customer Deposit",
+                    "payment": (
+                        sum([item.amount for item in record.itemList.item])
+                        + record.shippingCost
+                    ),
+                    "status": "Fully Applied",
+                    "cc_approved": True,
                 }
                 self.insert_customer_deposit(**customer_deposit)
 
