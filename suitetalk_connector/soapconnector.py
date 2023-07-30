@@ -1300,14 +1300,14 @@ class SOAPConnector(object):
         item = dict(
             item,
             **{
-                "itemId": item.pop("sku"),
+                "itemId": item.pop("itemId"),
                 "upcCode": "{:12}".format(int(eval(item.get("upcCode"))))
                 if item.get("upcCode")
                 else None,
                 "mpn": item.get("mpn", ""),
                 "weight": item.get("weight", 0.1),
                 "weightUnit": item.get("weightUnit", "lb"),
-                "salesDescription": item.pop("description", "")[:4000],
+                "salesDescription": item.pop("salesDescription", "")[:4000],
                 "cost": item.get("cost", "0"),
             },
         )
@@ -1324,7 +1324,7 @@ class SOAPConnector(object):
                         self.lookup_record_fields["subsidiary"]["field"]: subsidiary,
                     },
                 )
-                for subsidiary in item.pop("subsidiaries").split(",")
+                for subsidiary in item.pop("subsidiaries")
             ]
             if len(subsidiaries) > 0:
                 item.update(
@@ -1339,16 +1339,17 @@ class SOAPConnector(object):
                 )
 
         # Lookup vendor_entity_id
-        if item.get("vendorEntityId"):
-            vendor = self.get_record_by_variables(
-                "vendor",
-                **{
-                    self.lookup_record_fields["vendor"]["field"]: item.pop(
-                        "vendorEntityId"
-                    ),
-                },
-            )
-            if vendor:
+        if item.get("vendorEntityIds"):
+            vendors = [
+                self.get_record_by_variables(
+                    "vendor",
+                    **{
+                        self.lookup_record_fields["vendor"]["field"]: vendor_entity_id,
+                    },
+                )
+                for vendor_entity_id in item.pop("vendorEntityIds")
+            ]
+            if len(vendors) > 0:
                 item.update(
                     {
                         "itemVendorList": ItemVendorList(
@@ -1356,9 +1357,9 @@ class SOAPConnector(object):
                                 ItemVendor(
                                     vendor=RecordRef(
                                         internalId=vendor.internalId,
-                                        preferredVendor=True,
                                     )
                                 )
+                                for vendor in vendors
                             ]
                         )
                     }
