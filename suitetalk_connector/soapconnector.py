@@ -327,22 +327,32 @@ class SOAPConnector(object):
             return self.get_record_by_lookup(**variables)
 
         ## Lookup the record by custom field if the custom field is provided.
-        if kwargs.get(record_lookup["field"]):
-            variables = {
-                "record_type": record_type,
-                "search_data_type": record_lookup["search_data_type"],
-                "field": record_lookup["field"],
-                "value": kwargs.get(record_lookup["field"]),
-            }
-            if kwargs.get("operator"):
-                variables.update(
-                    {
-                        "operator": kwargs.get("operator"),
-                    }
+        value = kwargs.get(record_lookup["field"])
+        if value is not None:
+            field = record_lookup["field"]
+        else:
+            keys = list(
+                filter(
+                    lambda x: x not in ["id", "externalId", "operator"], kwargs.keys()
                 )
-            return self.get_record_by_lookup(**variables)
+            )
+            assert len(keys) > 0, "Miss required variables!!!"
+            field = keys[0]
+            value = kwargs.get(field)
 
-        raise Exception("Miss required variables!!!")
+        variables = {
+            "record_type": record_type,
+            "search_data_type": record_lookup["search_data_type"],
+            "field": field,
+            "value": kwargs.get(field),
+        }
+        if kwargs.get("operator"):
+            variables.update(
+                {
+                    "operator": kwargs.get("operator"),
+                }
+            )
+        return self.get_record_by_lookup(**variables)
 
     def get_custom_fields(self, record_type, _custom_fields, sublist=None):
         StringCustomFieldRef = self.get_data_type("ns0:StringCustomFieldRef")
