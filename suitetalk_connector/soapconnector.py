@@ -778,31 +778,32 @@ class SOAPConnector(object):
         task = self.get_lookup_select_values(task, record_type="task")
 
         # Lookup contact list.
-        contact_customers = [
-            self.get_customer(
-                contact.pop("extCustomerId", None),
-                contact.pop("nsCustomerId", None),
-                contact,
-            )
-            for contact in task.pop("contacts", [])
-        ]
-
-        task_contacts = list(
-            map(
-                lambda contact_customer: TaskContact(
-                    **{"company": RecordRef(internalId=contact_customer.internalId)}
+        if task.get("contacts"):
+            contact_customers = [
+                self.get_customer(
+                    contact.pop("extCustomerId", None),
+                    contact.pop("nsCustomerId", None),
+                    contact,
                 )
-                if contact_customer.isPerson == False
-                else TaskContact(
-                    **{"contact": RecordRef(internalId=contact_customer.internalId)}
-                ),
-                contact_customers,
-            )
-        )
+                for contact in task.pop("contacts", [])
+            ]
 
-        task.update(
-            {"contactList": TaskContactList(contact=task_contacts, replaceAll=True)}
-        )
+            task_contacts = list(
+                map(
+                    lambda contact_customer: TaskContact(
+                        **{"company": RecordRef(internalId=contact_customer.internalId)}
+                    )
+                    if contact_customer.isPerson == False
+                    else TaskContact(
+                        **{"contact": RecordRef(internalId=contact_customer.internalId)}
+                    ),
+                    contact_customers,
+                )
+            )
+
+            task.update(
+                {"contactList": TaskContactList(contact=task_contacts, replaceAll=True)}
+            )
 
         # Task Custom Fields
         _custom_fields = task.pop("customFields", {})
