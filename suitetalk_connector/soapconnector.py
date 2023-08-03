@@ -21,6 +21,9 @@ class SOAPConnector(object):
         self.transaction_attributes = setting["NETSUITEMAPPINGS"][
             "transaction_attributes"
         ]
+        self.transaction_update_restrict_attributes = setting["NETSUITEMAPPINGS"][
+            "transaction_update_restrict_attributes"
+        ]
         self.transaction_data_type = setting["NETSUITEMAPPINGS"][
             "transaction_data_type"
         ]
@@ -29,6 +32,9 @@ class SOAPConnector(object):
         ]
         self.transaction_item_list_data_type = setting["NETSUITEMAPPINGS"][
             "transaction_item_list_data_type"
+        ]
+        self.person_update_restrict_attributes = setting["NETSUITEMAPPINGS"][
+            "person_update_restrict_attributes"
         ]
         self.person_data_type = setting["NETSUITEMAPPINGS"]["person_data_type"]
         self.person_addressbook_list_data_type = setting["NETSUITEMAPPINGS"][
@@ -720,6 +726,12 @@ class SOAPConnector(object):
             else:
                 raise Exception("Miss variables to create a customer!!!")
 
+            _customer = _customer.update(
+                {
+                    "entityId": ns_customer_id,
+                    "externalId": ext_customer_id,
+                }
+            )
             customer = self.get_record(
                 "customer", self.insert_update_person("customer", _customer)
             )
@@ -1184,7 +1196,8 @@ class SOAPConnector(object):
 
         Transaction = self.get_data_type(self.transaction_data_type.get(record_type))
         if record:
-            transaction.pop("source")
+            for attribute in self.transaction_update_restrict_attributes:
+                transaction.pop(attribute, None)
             transaction.update({"internalId": record.internalId})
             self.update(Transaction(**transaction), record_type=record_type)
         else:
@@ -1228,7 +1241,65 @@ class SOAPConnector(object):
 
         return record.tranId
 
+    def get_contact_roles_list(self, contacts, company_internal_id=None):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        ContactAccessRoles = self.get_data_type("ns13:ContactAccessRoles")
+        ContactAccessRolesList = self.get_data_type("ns13:ContactAccessRolesList")
+        contact_roles = []
+        for contact in contacts:
+            records = self.get_records_by_lookup(
+                "contact",
+                "ns5:ContactSearchBasic",
+                "company",
+                [RecordRef(internalId=company_internal_id)],
+                operator="anyOf",
+            )
+
+            _records = list(
+                filter(lambda x: x.email == contact.get("email"), records)
+            )
+            if len(_records) > 0:
+                contact_role = {
+                    "contact": RecordRef(internalId=_records[0].internalId),
+                    "email": contact.get("email"),
+                }
+                contact_roles.append(ContactAccessRoles(**contact_role))
+                continue
+
+            contact.update(
+                {
+                    "companyInternalId": company_internal_id,
+                }
+            )
+            internal_id = self.insert_update_person("contact", contact)
+            contact_role = {
+                "contact": RecordRef(internalId=internal_id),
+                "email": contact.get("email"),
+            }
+            contact_roles.append(ContactAccessRoles(**contact_role))
+
+        contact_roles_list = ContactAccessRolesList(
+            contactRoles=contact_roles,
+            replaceAll=True,
+        )
+        return contact_roles_list
+
+    def get_person(self, person, contacts, internal_id):
+        for attribute in self.person_update_restrict_attributes:
+            person.pop(attribute, None)
+
+        if len(contacts) > 0:
+            contact_roles_list = self.get_contact_roles_list(
+                contacts,
+                company_internal_id=internal_id,
+            )
+            person.update({"contactRolesList": contact_roles_list})
+
+        person.update({"internalId": internal_id})
+        return person
+
     def insert_update_person(self, record_type, person):
+        RecordRef = self.get_data_type("ns0:RecordRef")
         PersonAddressbookList = self.get_data_type(
             self.person_addressbook_list_data_type.get(record_type)
         )
@@ -1237,34 +1308,68 @@ class SOAPConnector(object):
         )
         Address = self.get_data_type("ns5:Address")
         CustomFieldList = self.get_data_type("ns0:CustomFieldList")
+        CategoryList = self.get_data_type("ns13:CategoryList")
 
         self.logger.info(person)
 
         # Get lookup select values.
         person = self.get_lookup_select_values(person, record_type=record_type)
 
-        person.update({"isPerson": person.get("isPerson", True)})
-        if person.get("nsCustomerId"):
-            person.update({"entityId": person.pop("nsCustomerId")})
-        if person.get("extCustomerId"):
-            person.update({"externalId": person.pop("extCustomerId")})
+        if record_type in ["customer", "vendor"]:
+            person.update({"isPerson": person.get("isPerson", True)})
 
         # Lookup addressbook.
-        addressbook = [
-            PersonAddressbook(
+        addressbook = []
+        for address in person.pop("addresses"):
+            personAddressbook = PersonAddressbook(
                 **{
                     "defaultShipping": address.pop("defaultShipping", False),
                     "defaultBilling": address.pop("defaultBilling", False),
-                    "isResidential": address.pop("isResidential", True),
                     "label": address.get("addr1"),
-                    "addressbookAddress": Address(**address),
                 }
             )
-            for address in person.pop("addresses")
-        ]
+            if record_type == "customer":
+                personAddressbook.isResidential = address.pop("isResidential", True)
+            personAddressbook.addressbookAddress = Address(
+                **dict(
+                    address,
+                    **{
+                        "customFieldList": CustomFieldList(
+                            customField=self.get_custom_fields(
+                                record_type,
+                                address.pop("customFields", {}),
+                                sublist="itemList",
+                            )
+                        )
+                    },
+                )
+            )
+            addressbook.append(personAddressbook)
+
         person.update(
             {"addressbookList": PersonAddressbookList(**{"addressbook": addressbook})}
         )
+
+        # Lookup compamy.
+        if person.get("companyInternalId"):
+            record = self.get_record_by_variables(
+                "customer",
+                **{"id": person.pop("companyInternalId")},
+            )
+            person.update({"company": RecordRef(internalId=record.internalId)})
+
+        # Lookup categories.
+        if person.get("categories"):
+            categories = []
+            for category in person.pop("categories"):
+                internal_id = self.get_select_value_id(
+                    category, "category", record_type=record_type
+                )
+                categories.append(RecordRef(internalId=internal_id))
+            person.update({"categoryList": CategoryList(category=categories)})
+
+        # Lookup contacts.
+        contacts = person.pop("contacts", [])
 
         # person Custom Fields
         custom_fields = self.get_custom_fields(
@@ -1286,16 +1391,15 @@ class SOAPConnector(object):
             )
 
             if record:
-                if person.get("entityId"):
-                    person.pop("entityId")
-                if person.get("subsidiary"):
-                    person.pop("subsidiary")
-
-                person.update({"internalId": record.internalId})
+                person = self.get_person(person, contacts, record.internalId)
                 self.update(Person(**person), record_type=record_type)
                 return record.internalId
 
         record = self.add(Person(**person))
+
+        person = self.get_person(person, contacts, record.internalId)
+        self.update(Person(**person), record_type=record_type)
+
         return record.internalId
 
     def insert_update_item(self, record_type, item):
