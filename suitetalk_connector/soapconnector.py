@@ -1255,9 +1255,7 @@ class SOAPConnector(object):
                 operator="anyOf",
             )
 
-            _records = list(
-                filter(lambda x: x.email == contact.get("email"), records)
-            )
+            _records = list(filter(lambda x: x.email == contact.get("email"), records))
             if len(_records) > 0:
                 contact_role = {
                     "contact": RecordRef(internalId=_records[0].internalId),
