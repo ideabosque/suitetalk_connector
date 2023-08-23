@@ -192,7 +192,7 @@ class RESTConnector(object):
 
         raise Exception("Miss required variables!!!")
 
-    def get_custom_fields(self, custom_fields, record_type, sublist=None):
+    def get_custom_fields(self, record_type, custom_fields, sublist=None):
         for script_id, value in custom_fields.items():
             # Find the select value internal id by the value.
             if script_id in self.lookup_select_values.keys():
@@ -461,7 +461,7 @@ class RESTConnector(object):
 
                 # Item Custom Fields
                 item_custom_fields = self.get_custom_fields(
-                    _item.pop("customFields"), record_type, sublist="itemList"
+                    record_type, _item.pop("customFields"), sublist="itemList"
                 )
                 if len(item_custom_fields.keys()) != 0:
                     transaction_item.update(item_custom_fields)
@@ -562,7 +562,8 @@ class RESTConnector(object):
 
         # Order Custom Fields
         custom_fields = self.get_custom_fields(
-            transaction.pop("customFields"), record_type
+            record_type,
+            transaction.pop("customFields"),
         )
         if len(custom_fields.keys()) != 0:
             transaction.update(custom_fields)
