@@ -92,6 +92,13 @@ class SOAPConnector(object):
     def get_select_values(self, record_type, field, sublist=None):
         return self.soap_adaptor.get_select_values(record_type, field, sublist=sublist)
 
+    def get_deleted(self, get_deleted_filter=None, page_index=0, preferences=None):
+        return self.soap_adaptor.get_deleted(
+            get_deleted_filter=get_deleted_filter,
+            page_index=page_index,
+            preferences=preferences,
+        )
+
     def get_select_value_id(self, value, field, record_type=None, sublist=None):
         try:
             if self.lookup_select_values[field].get(
@@ -2272,3 +2279,44 @@ class SOAPConnector(object):
 
         rows = self.search(search_record, advance=True)
         return rows
+
+    def get_deleted_records(self, record_type, **kwargs):
+        GetDeletedFilter = self.get_data_type("ns0:GetDeletedFilter")
+        SearchEnumMultiSelectField = self.get_data_type(
+            "ns0:SearchEnumMultiSelectField"
+        )
+        SearchDateField = self.get_data_type("ns0:SearchDateField")
+        SearchStringField = self.get_data_type("ns0:SearchStringField")
+
+        script_id = kwargs.get("script_id")
+        page_index = int(kwargs.get("page_index", 1))
+        cut_date = kwargs.get("cut_date")
+        end_date = kwargs.get("end_date")
+        hours = float(kwargs.get("hours", 0))
+
+        begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
+        if hours == 0:
+            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
+        else:
+            end = begin + timedelta(hours=hours)
+
+        search_date_field = SearchDateField(
+            searchValue=begin, searchValue2=end, operator="within"
+        )
+
+        get_deleted_filter = GetDeletedFilter(
+            deletedDate=search_date_field,
+            type=SearchEnumMultiSelectField(
+                searchValue=[record_type], operator="anyOf"
+            ),
+        )
+
+        if script_id:
+            get_deleted_filter.scriptId = SearchStringField(
+                searchValue=script_id, operator="is"
+            )
+
+        return self.soap_adaptor.get_deleted(
+            get_deleted_filter=get_deleted_filter,
+            page_index=page_index,
+        )

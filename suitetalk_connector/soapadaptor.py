@@ -211,18 +211,19 @@ class SOAPAdaptor(object):
                 else:
                     records = response["body"]["searchResult"]["recordList"]["record"]
                 self.logger.info(
-                    f"Total_records {total_records}: {len(records)}/{page_index}"
+                    f"Total_records/Total_pages {total_records}/{total_pages}: {len(records)} records at page {page_index}."
                 )
                 limit_pages = (
                     total_pages if limit_pages == 0 else min([limit_pages, total_pages])
                 )
                 while page_index < limit_pages:
                     page_index += 1
-                    records.extend(
-                        self.search_more_with_id(search_id, page_index, advance=advance)
+                    _records = self.search_more_with_id(
+                        search_id, page_index, advance=advance
                     )
+                    records.extend(_records)
                     self.logger.info(
-                        f"Total_records {total_records}: {len(records)}/{page_index}"
+                        f"Total_records/Total_pages {total_records}/{total_pages}: {len(_records)}/{len(records)} records at page {page_index}."
                     )
                 return records
             else:
@@ -313,6 +314,51 @@ class SOAPAdaptor(object):
             account=self.setting["ACCOUNT"], _soapheaders=soapheaders
         )
         return response.body.getDataCenterUrlsResult.dataCenterUrls
+
+    @retry(
+        reraise=True,
+        wait=wait_exponential(multiplier=1, max=60),
+        stop=stop_after_attempt(5),
+    )
+    def get_deleted(self, get_deleted_filter=None, page_index=1, preferences=None):
+        soapheaders = {
+            "tokenPassport": self.token_passport,
+            "applicationInfo": self.application_info,
+        }
+        if preferences:
+            soapheaders["preferences"] = preferences
+        response = self.service.getDeleted(
+            getDeletedFilter=get_deleted_filter,
+            pageIndex=page_index,
+            _soapheaders=soapheaders,
+        )
+        is_success = response["body"]["getDeletedResult"]["status"]["isSuccess"]
+        total_records = response["body"]["getDeletedResult"]["totalRecords"]
+        total_pages = response["body"]["getDeletedResult"]["totalPages"]
+        page_index = response["body"]["getDeletedResult"]["pageIndex"]
+        page_size = response["body"]["getDeletedResult"]["pageSize"]
+        if is_success == True:
+            if total_records > 0:
+                records = response["body"]["getDeletedResult"]["deletedRecordList"][
+                    "deletedRecord"
+                ]
+                self.logger.info(
+                    f"Total_records/Total_pages {total_records}/{total_pages}: {len(records)} records at page {page_index}."
+                )
+                return {
+                    "total_records": total_records,
+                    "total_pages": total_pages,
+                    "page_index": page_index,
+                    "page_size": page_size,
+                    "records": records,
+                }
+            else:
+                return None
+        else:
+            status_detail = response["body"]["getDeletedResult"]["status"][
+                "statusDetail"
+            ]
+            raise Exception(status_detail)
 
     @property
     def service(self):
