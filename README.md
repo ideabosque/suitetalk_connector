@@ -346,7 +346,7 @@ Create a `netsuitemappings_soap.json` file in the project directory with the app
 - `custom_records`: This parameter contains configurations for custom records in NetSuite. It specifies the internal IDs of custom records that can be used in the integration.
 - `item_detail_record_types`: This parameter lists the record types in NetSuite that have detailed information about items. For example, purchase orders and return authorizations may have additional item details.
 - `inventory_detail_record_types`: This parameter lists the record types in NetSuite that have detailed information about inventory-related transactions, such as purchase orders, item receipts, item fulfillments, sales orders, and return authorizations.
-- `update_exception_record_types`: This parameter lists the record types in NetSuite that have exceptions when updating records. These record types may require special handling during the integration process.
+- `transaction_update_statuses`: This parameter serves two pivotal purposes for updating records. Firstly, it facilitates updates only when the transaction status aligns with the statuses listed. Secondly, it ensures updates occur if the transaction's record type is absent from the keys within `transaction_update_statuses`.
 
 ### Sample Configuration
 
