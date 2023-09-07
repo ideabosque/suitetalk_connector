@@ -54,8 +54,8 @@ class SOAPConnector(object):
         self.inventory_detail_record_types = setting["NETSUITEMAPPINGS"][
             "inventory_detail_record_types"
         ]
-        self.update_exception_record_types = setting["NETSUITEMAPPINGS"].get(
-            "update_exception_record_types", []
+        self.transaction_update_statuses = setting["NETSUITEMAPPINGS"].get(
+            "transaction_update_statuses", {}
         )
         self._soap_adaptor = None
 
@@ -85,8 +85,6 @@ class SOAPConnector(object):
         return self.soap_adaptor.add(record)
 
     def update(self, record, record_type=None):
-        if record_type in self.update_exception_record_types:
-            return
         return self.soap_adaptor.update(record)
 
     def get_select_values(self, record_type, field, sublist=None):
@@ -1203,10 +1201,17 @@ class SOAPConnector(object):
 
         Transaction = self.get_data_type(self.transaction_data_type.get(record_type))
         if record:
-            for attribute in self.transaction_update_restrict_attributes:
-                transaction.pop(attribute, None)
-            transaction.update({"internalId": record.internalId})
-            self.update(Transaction(**transaction), record_type=record_type)
+            ## Only if the transaction status is in the update statuses list, then update the record.
+            ## Or if the record type of the transaction is not in the transaction_update_statuses's key list then update the record.
+            if (
+                record_type not in self.transaction_update_statuses.keys()
+                or transaction.get("status")
+                in self.transaction_update_statuses[record_type]
+            ):
+                for attribute in self.transaction_update_restrict_attributes:
+                    transaction.pop(attribute, None)
+                transaction.update({"internalId": record.internalId})
+                self.update(Transaction(**transaction), record_type=record_type)
         else:
             record = self.add(Transaction(**transaction))
             record = self.get_record(record_type, record.internalId)
