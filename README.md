@@ -324,10 +324,10 @@ Create a `netsuitemappings_soap.json` file in the project directory with the app
     "salesOrder",
     "returnAuthorization"
   ],
-  "update_exception_record_types": [
-    "salesOrder",
-    "returnAuthorization"
-  ]
+  "transaction_update_statuses": {
+    "salesOrder": ["Cancelled"],
+    "returnAuthorization": []
+  }
 }
 ```
 
