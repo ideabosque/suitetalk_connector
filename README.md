@@ -64,34 +64,6 @@ Create a `netsuitemappings_soap.json` file in the project directory with the app
 
 ```json
 {
-  "transaction_attributes": [
-    "entity",
-    "email",
-    "salesRep",
-    "subsidiary",
-    "customForm",
-    "class",
-    "location",
-    "billingAddress",
-    "shippingAddress",
-    "pnRefNum",
-    "otherRefNum",
-    "source",
-    "memo",
-    "message",
-    "shipDate",
-    "shippingCost",
-    "terms",
-    "paymentMethod",
-    "shipMethod",
-    "itemList",
-    "shipDate",
-    "tranDate",
-    "orderStatus",
-    "customFieldList",
-    "status",
-    "createdFrom"
-  ],
   "transaction_data_type": {
     "salesOrder": "ns19:SalesOrder",
     "opportunity": "ns19:Opportunity",
@@ -332,7 +304,6 @@ Create a `netsuitemappings_soap.json` file in the project directory with the app
 ```
 
 **Parameters:**
-- `transaction_attributes`: This parameter specifies the list of attributes that will be used for any transaction in the NetSuite system.
 - `transaction_data_type`: This parameter defines the SOAP data type associated with each transaction type in NetSuite. It specifies the data type used to represent the transaction data.
 - `transaction_item_data_type`: This parameter determines the SOAP data type associated with the items within a transaction. It indicates the data type used to represent individual items in a transaction.
 - `transaction_item_list_data_type`: This parameter indicates the SOAP data type for the list of items within a transaction. It specifies the data type used to represent the collection of items in a transaction.
