@@ -18,9 +18,6 @@ class SOAPConnector(object):
     def __init__(self, logger, **setting):
         self.logger = logger
         self.setting = setting
-        self.transaction_attributes = setting["NETSUITEMAPPINGS"][
-            "transaction_attributes"
-        ]
         self.transaction_update_restrict_attributes = setting["NETSUITEMAPPINGS"][
             "transaction_update_restrict_attributes"
         ]
@@ -1009,7 +1006,7 @@ class SOAPConnector(object):
                             )
                         )
 
-                if status == "Canceled" and record_type in ["salesOrder"]:
+                if status == "Cancelled" and record_type in ["salesOrder"]:
                     transaction_item.isClosed = True
 
                 transaction_items.append(transaction_item)
@@ -1076,6 +1073,9 @@ class SOAPConnector(object):
             self.transaction_item_list_data_type.get(record_type)
         )
         SalesOrderOrderStatus = self.get_data_type("ns20:SalesOrderOrderStatus")
+        Transaction = self.get_data_type(self.transaction_data_type.get(record_type))
+        # Access the attributes of the type
+        transaction_attributes = [element_name for element_name, _ in Transaction.elements]
 
         self.logger.info(transaction)
         payment_method = transaction.get("paymentMethod")
@@ -1094,7 +1094,7 @@ class SOAPConnector(object):
                 {
                     key: value
                     for key, value in transaction.items()
-                    if key in self.transaction_attributes
+                    if key in transaction_attributes
                 },
                 record_type=record_type,
             ),
@@ -1190,7 +1190,9 @@ class SOAPConnector(object):
             )
 
         transaction = {
-            k: v for k, v in transaction.items() if k in self.transaction_attributes
+            k: v
+            for k, v in transaction.items()
+            if k in transaction_attributes
         }
         self.logger.info(transaction)
 
@@ -1203,7 +1205,6 @@ class SOAPConnector(object):
             **{record_lookup["field"]: record_lookup_value},
         )
 
-        Transaction = self.get_data_type(self.transaction_data_type.get(record_type))
         if record:
             ## Only if the transaction status is in the update statuses list, then update the record.
             ## Or if the record type of the transaction is not in the transaction_update_statuses's key list then update the record.
@@ -1214,11 +1215,11 @@ class SOAPConnector(object):
             ):
                 for attribute in self.transaction_update_restrict_attributes:
                     transaction.pop(attribute, None)
-                    
+
                 ## If the record_type is salesOrder, then remove the status attribute from the transaction.
                 if record_type in ["salesOrder"]:
                     transaction.pop("status", None)
-                
+
                 transaction.update({"internalId": record.internalId})
                 self.update(Transaction(**transaction), record_type=record_type)
         else:
