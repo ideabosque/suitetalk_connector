@@ -192,45 +192,49 @@ class SOAPAdaptor(object):
             "tokenPassport": self.token_passport,
             "applicationInfo": self.application_info,
         }
+
         if search_preferences:
             soapheaders["searchPreferences"] = search_preferences
+
         response = self.service.search(
             searchRecord=search_record, _soapheaders=soapheaders
         )
-        is_success = response["body"]["searchResult"]["status"]["isSuccess"]
-        total_records = response["body"]["searchResult"]["totalRecords"]
-        total_pages = response["body"]["searchResult"]["totalPages"]
-        page_index = response["body"]["searchResult"]["pageIndex"]
-        search_id = response["body"]["searchResult"]["searchId"]
-        if is_success == True:
-            if total_records > 0:
-                if advance:
-                    records = response["body"]["searchResult"]["searchRowList"][
-                        "searchRow"
-                    ]
-                else:
-                    records = response["body"]["searchResult"]["recordList"]["record"]
-                self.logger.info(
-                    f"Total_records/Total_pages {total_records}/{total_pages}: {len(records)} records at page {page_index}."
-                )
-                limit_pages = (
-                    total_pages if limit_pages == 0 else min([limit_pages, total_pages])
-                )
-                while page_index < limit_pages:
-                    page_index += 1
-                    _records = self.search_more_with_id(
-                        search_id, page_index, advance=advance
-                    )
-                    records.extend(_records)
-                    self.logger.info(
-                        f"Total_records/Total_pages {total_records}/{total_pages}: {len(_records)}/{len(records)} records at page {page_index}."
-                    )
-                return records
-            else:
-                return None
-        else:
-            status_detail = response["body"]["searchResult"]["status"]["statusDetail"]
+        search_result = response["body"]["searchResult"]
+        is_success = search_result["status"]["isSuccess"]
+        total_records = search_result["totalRecords"]
+        total_pages = search_result["totalPages"]
+        page_index = search_result["pageIndex"]
+        search_id = search_result["searchId"]
+
+        if not is_success:
+            status_detail = search_result["status"]["statusDetail"]
             raise Exception(status_detail)
+
+        if total_records == 0:
+            return None
+
+        records = []
+
+        if advance:
+            records.extend(search_result["searchRowList"]["searchRow"])
+        else:
+            records.extend(search_result["recordList"]["record"])
+
+        self.logger.info(
+            f"Total_records/Total_pages {total_records}/{total_pages}: {len(records)} records at page {page_index}."
+        )
+
+        limit_pages = total_pages if limit_pages == 0 else min(limit_pages, total_pages)
+
+        while page_index < limit_pages:
+            page_index += 1
+            _records = self.search_more_with_id(search_id, page_index, advance=advance)
+            records.extend(_records)
+            self.logger.info(
+                f"Total_records/Total_pages {total_records}/{total_pages}: {len(_records)}/{len(records)} records at page {page_index}."
+            )
+
+        return records
 
     @retry(
         reraise=True,
@@ -242,24 +246,26 @@ class SOAPAdaptor(object):
             "tokenPassport": self.token_passport,
             "applicationInfo": self.application_info,
         }
+
         response = self.service.searchMoreWithId(
             searchId=search_id, pageIndex=page_index, _soapheaders=soapheaders
         )
-        is_success = response["body"]["searchResult"]["status"]["isSuccess"]
-        total_records = response["body"]["searchResult"]["totalRecords"]
-        if is_success == True:
-            if total_records > 0:
-                if advance:
-                    return response["body"]["searchResult"]["searchRowList"][
-                        "searchRow"
-                    ]
-                else:
-                    return response["body"]["searchResult"]["recordList"]["record"]
-            else:
-                return []
-        else:
-            status_detail = response["body"]["searchResult"]["status"]["statusDetail"]
+
+        search_result = response["body"]["searchResult"]
+        is_success = search_result["status"]["isSuccess"]
+        total_records = search_result["totalRecords"]
+
+        if not is_success:
+            status_detail = search_result["status"]["statusDetail"]
             raise Exception(status_detail)
+
+        if total_records > 0:
+            if advance:
+                return search_result["searchRowList"]["searchRow"]
+            else:
+                return search_result["recordList"]["record"]
+        else:
+            return []
 
     @retry(
         reraise=True,
@@ -325,40 +331,40 @@ class SOAPAdaptor(object):
             "tokenPassport": self.token_passport,
             "applicationInfo": self.application_info,
         }
+
         if preferences:
             soapheaders["preferences"] = preferences
+
         response = self.service.getDeleted(
             getDeletedFilter=get_deleted_filter,
             pageIndex=page_index,
             _soapheaders=soapheaders,
         )
-        is_success = response["body"]["getDeletedResult"]["status"]["isSuccess"]
-        total_records = response["body"]["getDeletedResult"]["totalRecords"]
-        total_pages = response["body"]["getDeletedResult"]["totalPages"]
-        page_index = response["body"]["getDeletedResult"]["pageIndex"]
-        page_size = response["body"]["getDeletedResult"]["pageSize"]
-        if is_success == True:
-            if total_records > 0:
-                records = response["body"]["getDeletedResult"]["deletedRecordList"][
-                    "deletedRecord"
-                ]
-                self.logger.info(
-                    f"Total_records/Total_pages {total_records}/{total_pages}: {len(records)} records at page {page_index}."
-                )
-                return {
-                    "total_records": total_records,
-                    "total_pages": total_pages,
-                    "page_index": page_index,
-                    "page_size": page_size,
-                    "records": records,
-                }
-            else:
-                return None
-        else:
-            status_detail = response["body"]["getDeletedResult"]["status"][
-                "statusDetail"
-            ]
+
+        get_deleted_result = response["body"]["getDeletedResult"]
+        is_success = get_deleted_result["status"]["isSuccess"]
+        total_records = get_deleted_result["totalRecords"]
+        total_pages = get_deleted_result["totalPages"]
+        page_size = get_deleted_result["pageSize"]
+
+        if not is_success:
+            status_detail = get_deleted_result["status"]["statusDetail"]
             raise Exception(status_detail)
+
+        if total_records > 0:
+            records = get_deleted_result["deletedRecordList"]["deletedRecord"]
+            self.logger.info(
+                f"Total_records/Total_pages {total_records}/{total_pages}: {len(records)} records at page {page_index}."
+            )
+            return {
+                "total_records": total_records,
+                "total_pages": total_pages,
+                "page_index": page_index,
+                "page_size": page_size,
+                "records": records,
+            }
+        else:
+            return None
 
     @property
     def service(self):
