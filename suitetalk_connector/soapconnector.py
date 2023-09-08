@@ -872,7 +872,7 @@ class SOAPConnector(object):
     ## @param items: The items.
     ## @param pricelevel: The price level.
     ## @return: The transaction items and message.
-    def get_transaction_items(self, record_type, _items, pricelevel=None):
+    def get_transaction_items(self, record_type, _items, pricelevel=None, status=None):
         RecordRef = self.get_data_type("ns0:RecordRef")
         CustomFieldList = self.get_data_type("ns0:CustomFieldList")
         TransactionItem = self.get_data_type(
@@ -1009,6 +1009,9 @@ class SOAPConnector(object):
                             )
                         )
 
+                if status == "Canceled" and record_type in ["salesOrder"]:
+                    transaction_item.isClosed = True
+
                 transaction_items.append(transaction_item)
                 self.logger.info(f"The item ({sku}/{item.internalId}) is added.")
             else:
@@ -1110,6 +1113,7 @@ class SOAPConnector(object):
             record_type,
             transaction.pop("items"),
             pricelevel=transaction.pop("priceLevel", None),
+            status=transaction.get("status"),
         )
 
         if message:
@@ -1210,6 +1214,11 @@ class SOAPConnector(object):
             ):
                 for attribute in self.transaction_update_restrict_attributes:
                     transaction.pop(attribute, None)
+                    
+                ## If the record_type is salesOrder, then remove the status attribute from the transaction.
+                if record_type in ["salesOrder"]:
+                    transaction.pop("status", None)
+                
                 transaction.update({"internalId": record.internalId})
                 self.update(Transaction(**transaction), record_type=record_type)
         else:
