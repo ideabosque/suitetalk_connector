@@ -508,3 +508,58 @@ This method will retrieve persons of the specified record type based on the prov
 - `item_types` (for `get_items`): A list of item record types to be retrieved.
 - `custom_fields` (for `get_items`): A dictionary of custom fields and their values to be used as conditions for retrieving data.
 
+### Inserting or Updating Transactions with the SuiteTalk Connector
+
+The `insert_update_transaction` function in the SuiteTalk Connector allows you to seamlessly insert new transactions into NetSuite or update existing ones. This function provides a comprehensive set of features to handle various aspects of the transaction, including data mapping, custom fields, item details, and more. Below, we'll explain how to use this function and its key capabilities.
+
+#### Function Signature:
+
+```python
+def insert_update_transaction(self, record_type, transaction):
+```
+
+- `record_type`: The type of transaction you want to insert or update (e.g., "salesOrder", "invoice", "purchaseOrder", etc.).
+- `transaction`: A dictionary representing the transaction data that you want to insert or update.
+
+#### Key Features:
+
+1. **Data Mapping**: The function handles the mapping and transformation of data between your application and NetSuite's data model, ensuring seamless integration.
+
+2. **Custom Fields**: It supports custom fields, allowing you to include additional custom data in your transactions.
+
+3. **Item Details**: You can include item details, such as item lines and item lists, as part of the transaction.
+
+4. **Address Handling**: The function can manage billing and shipping addresses associated with the transaction.
+
+5. **Date and Status Handling**: It handles dates (e.g., shipDate, tranDate) and transaction statuses efficiently.
+
+6. **Customer Deposit**: For "salesOrder" transactions, it can automatically insert a Customer Deposit if specified in the configuration.
+
+7. **Notes**: You can add notes to the transaction for additional context.
+
+#### Usage Example:
+
+Here's an example of how to use the `insert_update_transaction` function:
+
+```python
+# Example transaction data
+transaction_data = {
+    "recordType": "salesOrder",
+    "extCustomerId": "12345",
+    "notes": [
+        {
+            "title": "Important Note",
+            "memo": "This is an important note for the order.",
+        }
+    ],
+    # ... Other transaction data ...
+}
+
+# Insert or update the transaction
+result = soap_connector.insert_update_transaction("salesOrder", transaction_data)
+
+# The result will contain the transaction ID or other relevant information.
+print("Transaction ID:", result.tranId)
+```
+
+This function simplifies the process of inserting or updating transactions in NetSuite, allowing you to focus on your business logic while abstracting the complexities of the SuiteTalk API.
