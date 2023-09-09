@@ -172,12 +172,16 @@ class SOAPAdaptor(object):
             "tokenPassport": self.token_passport,
             "applicationInfo": self.application_info,
         }
+
         response = self.service.update(record=record, _soapheaders=soapheaders)
-        if response["body"]["writeResponse"]["status"]["isSuccess"] == True:
-            record = response["body"]["writeResponse"]["baseRef"]
-            return record
+        write_response = response["body"]["writeResponse"]
+        is_success = write_response["status"]["isSuccess"]
+
+        if is_success:
+            updated_record = write_response["baseRef"]
+            return updated_record
         else:
-            status_detail = response["body"]["writeResponse"]["status"]["statusDetail"]
+            status_detail = write_response["status"]["statusDetail"]
             self.logger.error(status_detail)
             raise Exception(status_detail)
 
@@ -277,16 +281,39 @@ class SOAPAdaptor(object):
             "tokenPassport": self.token_passport,
             "applicationInfo": self.application_info,
         }
+
         response = self.service.getSelectValue(
             fieldDescription=get_select_value_field_description,
             pageIndex=0,
             _soapheaders=soapheaders,
         )
-        if response.body.getSelectValueResult.baseRefList:
-            return response.body.getSelectValueResult.baseRefList.baseRef
+
+        select_value_result = response.body.getSelectValueResult
+        base_ref_list = select_value_result.baseRefList
+
+        if base_ref_list and base_ref_list.baseRef:
+            return base_ref_list.baseRef
+
         return None
 
     def get_select_values(self, record_type, field, sublist=None):
+        # Create GetSelectValueFieldDescription object
+        get_select_value_field_description = self.create_select_value_field_description(
+            record_type, field, sublist
+        )
+
+        # Get select values
+        select_values = self.get_select_value(get_select_value_field_description)
+
+        # Convert select values to a dictionary
+        if select_values:
+            return {
+                select_value.name: select_value.internalId
+                for select_value in select_values
+            }
+        return {}
+
+    def create_select_value_field_description(self, record_type, field, sublist=None):
         GetSelectValueFieldDescription = self.get_data_type(
             "ns0:GetSelectValueFieldDescription"
         )
@@ -295,16 +322,7 @@ class SOAPAdaptor(object):
         )
         if sublist:
             get_select_value_field_description.sublist = sublist
-
-        select_values = self.get_select_value(
-            get_select_value_field_description=get_select_value_field_description
-        )
-        if select_values:
-            return {
-                select_value.name: select_value.internalId
-                for select_value in select_values
-            }
-        return {}
+        return get_select_value_field_description
 
     @retry(
         reraise=True,
@@ -342,14 +360,19 @@ class SOAPAdaptor(object):
         )
 
         get_deleted_result = response["body"]["getDeletedResult"]
-        is_success = get_deleted_result["status"]["isSuccess"]
+        status = get_deleted_result["status"]
+        is_success = status["isSuccess"]
+        status_detail = status.get("statusDetail")
+
+        if not is_success:
+            if status_detail:
+                raise Exception(status_detail)
+            else:
+                raise Exception("An error occurred while retrieving deleted records.")
+
         total_records = get_deleted_result["totalRecords"]
         total_pages = get_deleted_result["totalPages"]
         page_size = get_deleted_result["pageSize"]
-
-        if not is_success:
-            status_detail = get_deleted_result["status"]["statusDetail"]
-            raise Exception(status_detail)
 
         if total_records > 0:
             records = get_deleted_result["deletedRecordList"]["deletedRecord"]
