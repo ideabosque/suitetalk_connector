@@ -35,4 +35,7 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.publish]
-repository = "https://test.pypi.org/legacy/"
+repository = "https://pypi.org/legacy/"  # Production PyPI repository
+[[tool.poetry.publish]]
+name = "testpypi"  # Name for the dev repository (you can choose a custom name)
+url = "https://test.pypi.org/legacy/"  # URL for the dev repository (e.g., TestPyPI)
