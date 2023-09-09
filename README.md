@@ -508,7 +508,7 @@ This method will retrieve persons of the specified record type based on the prov
 - `item_types` (for `get_items`): A list of item record types to be retrieved.
 - `custom_fields` (for `get_items`): A dictionary of custom fields and their values to be used as conditions for retrieving data.
 
-### Inserting or Updating Transactions with the SuiteTalk Connector
+### Inserting or Updating Transactions
 
 The `insert_update_transaction` function in the SuiteTalk Connector allows you to seamlessly insert new transactions into NetSuite or update existing ones. This function provides a comprehensive set of features to handle various aspects of the transaction, including data mapping, custom fields, item details, and more. Below, we'll explain how to use this function and its key capabilities.
 
@@ -563,3 +563,65 @@ print("Transaction ID:", result.tranId)
 ```
 
 This function simplifies the process of inserting or updating transactions in NetSuite, allowing you to focus on your business logic while abstracting the complexities of the SuiteTalk API.
+
+### Inserting or Updating Items
+
+The `insert_update_item` function in the SuiteTalk Connector allows you to insert new items into NetSuite or update existing items. This function provides extensive capabilities for managing item details, custom fields, pricing, and more. Below, we'll explain how to use this function and its key features.
+
+#### Function Signature:
+
+```python
+def insert_update_item(self, record_type, item):
+```
+
+- `record_type`: The type of item you want to insert or update (e.g., "inventoryItem", "lotNumberedInventoryItem", "nonInventoryResaleItem", etc.).
+- `item`: A dictionary representing the item data that you want to insert or update.
+
+#### Key Features:
+
+1. **Data Mapping**: The function handles the mapping and transformation of item data between your application and NetSuite, ensuring smooth integration.
+
+2. **Custom Fields**: It supports custom fields, allowing you to include additional custom data for your items.
+
+3. **Subsidiaries**: You can associate items with one or more subsidiaries, streamlining multi-subsidiary operations.
+
+4. **Vendors**: The function can link items to vendor records, enabling efficient vendor management.
+
+5. **Item Custom Fields**: You can include custom fields specific to items to capture additional item-related information.
+
+6. **Pricing**: It supports pricing, including the ability to set MSRP (Manufacturer's Suggested Retail Price) and price levels for items.
+
+#### Usage Example:
+
+Here's an example of how to use the `insert_update_item` function:
+
+```python
+# Example item data
+item_data = {
+    "recordType": "inventoryItem",
+    "itemId": "ITEM123",
+    "upcCode": "123456789012",
+    "mpn": "MPN123",
+    "weight": 0.5,
+    "weightUnit": "lb",
+    "salesDescription": "This is a sample item.",
+    "cost": "50",
+    "subsidiaries": ["ABC Subsidiary", "XYZ Subsidiary"],
+    "vendorEntityIds": ["Vendor1", "Vendor2"],
+    "customFields": {
+        "customField1": "Value1",
+        "customField2": "Value2",
+    },
+    "msrp": "100",
+    "msrpPriceLevel": "Standard",
+    # ... Other item data ...
+}
+
+# Insert or update the item
+result = soap_connector.insert_update_item("inventoryItem", item_data)
+
+# The result will contain the internal ID of the item or other relevant information.
+print("Item Internal ID:", result)
+```
+
+This function simplifies the process of inserting or updating items in NetSuite, allowing you to focus on your business logic while abstracting the complexities of the SuiteTalk API.
