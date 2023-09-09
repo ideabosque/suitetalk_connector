@@ -564,6 +564,72 @@ print("Transaction ID:", result.tranId)
 
 This function simplifies the process of inserting or updating transactions in NetSuite, allowing you to focus on your business logic while abstracting the complexities of the SuiteTalk API.
 
+### Inserting or Updating Persons (Customers, Vendors, etc.)
+
+The `insert_update_person` function in the SuiteTalk Connector allows you to insert new person records (e.g., customers, vendors) into NetSuite or update existing ones. This function provides extensive capabilities for managing person details, including addresses, categories, custom fields, and more. Below, we'll explain how to use this function and its key features.
+
+#### Function Signature:
+
+```python
+def insert_update_person(self, record_type, person):
+```
+
+- `record_type`: The type of person record you want to insert or update (e.g., "customer", "vendor", etc.).
+- `person`: A dictionary representing the person data that you want to insert or update.
+
+#### Key Features:
+
+1. **Data Mapping**: The function handles the mapping and transformation of person data between your application and NetSuite, ensuring smooth integration.
+
+2. **Addresses**: You can associate multiple addresses with a person, including specifying default shipping and billing addresses.
+
+3. **Company Linkage**: It supports linking a person to a company record, simplifying the representation of relationships between individuals and organizations.
+
+4. **Categories**: You can assign categories to a person, facilitating segmentation and categorization of your records.
+
+5. **Custom Fields**: It supports custom fields for person records, allowing you to capture additional information as needed.
+
+6. **Contacts**: The function handles contacts associated with a person record, including adding or updating contact details.
+
+#### Usage Example:
+
+Here's an example of how to use the `insert_update_person` function:
+
+```python
+# Example person data for a customer
+customer_data = {
+    "recordType": "customer",
+    "entityId": "CUST123",
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "johndoe@example.com",
+    "phones": [{"phone": "123-456-7890", "default": True}],
+    "addresses": [
+        {
+            "addr1": "123 Main St",
+            "city": "Anytown",
+            "state": "CA",
+            "zip": "12345",
+            "country": "US",
+            "defaultShipping": True,
+            "defaultBilling": True,
+        }
+    ],
+    "companyInternalId": "COMP456",  # Link to the associated company
+    "categories": ["Category1", "Category2"],  # Assign categories
+    "customFields": {"customField1": "Value1", "customField2": "Value2"},
+    # ... Other person data ...
+}
+
+# Insert or update the person (customer)
+result = soap_connector.insert_update_person("customer", customer_data)
+
+# The result will contain the internal ID of the person record or other relevant information.
+print("Person Internal ID:", result)
+```
+
+This function simplifies the process of inserting or updating person records in NetSuite, allowing you to focus on your business logic while abstracting the complexities of the SuiteTalk API. Whether you're managing customer or vendor records, this function provides the flexibility and features you need to streamline your integration efforts.
+
 ### Inserting or Updating Items
 
 The `insert_update_item` function in the SuiteTalk Connector allows you to insert new items into NetSuite or update existing items. This function provides extensive capabilities for managing item details, custom fields, pricing, and more. Below, we'll explain how to use this function and its key features.
