@@ -1006,7 +1006,7 @@ class SOAPConnector(object):
                             )
                         )
 
-                if status == "Cancelled" and record_type in ["salesOrder"]:
+                if status == "Closed" and record_type in ["salesOrder"]:
                     transaction_item.isClosed = True
 
                 transaction_items.append(transaction_item)
