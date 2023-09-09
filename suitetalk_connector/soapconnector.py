@@ -1022,12 +1022,15 @@ class SOAPConnector(object):
     ##
     ## @param kwargs: The customer deposit.
     def insert_customer_deposit(self, **kwargs):
+        # Import necessary data types
         RecordRef = self.get_data_type("ns0:RecordRef")
         CustomerDeposit = self.get_data_type("ns23:CustomerDeposit")
 
+        # Check if payment is zero, if so, return early
         if kwargs["payment"] == 0:
             return
 
+        # Create a dictionary for customer deposit data
         customer_deposit = {
             "salesOrder": RecordRef(internalId=kwargs["sales_order_internal_id"]),
             "customer": RecordRef(internalId=kwargs["customer_internal_id"]),
@@ -1045,14 +1048,19 @@ class SOAPConnector(object):
             "status": kwargs["status"],
             "ccApproved": kwargs["cc_approved"],
         }
+
+        # Add the customer deposit to the system
         self.add(CustomerDeposit(**customer_deposit))
 
     ## Insert transaction notes.
     ##
     ## @param notes: The transaction notes.
     def insert_transaction_notes(self, notes):
+        # Import necessary data types
         RecordRef = self.get_data_type("ns0:RecordRef")
         Note = self.get_data_type("ns9:Note")
+
+        # Iterate through notes and insert them
         for note in notes:
             self.add(
                 Note(
@@ -1067,6 +1075,7 @@ class SOAPConnector(object):
     ## @param record_type: The record type.
     ## @param transaction: The transaction.
     def insert_update_transaction(self, record_type, transaction):
+        # Import necessary data types and data
         RecordRef = self.get_data_type("ns0:RecordRef")
         CustomFieldList = self.get_data_type("ns0:CustomFieldList")
         TransactionItemList = self.get_data_type(
@@ -1074,20 +1083,24 @@ class SOAPConnector(object):
         )
         SalesOrderOrderStatus = self.get_data_type("ns20:SalesOrderOrderStatus")
         Transaction = self.get_data_type(self.transaction_data_type.get(record_type))
-        # Access the attributes of the type
-        transaction_attributes = [element_name for element_name, _ in Transaction.elements]
 
+        # Access the attributes of the type
+        transaction_attributes = [
+            element_name for element_name, _ in Transaction.elements
+        ]
+
+        # Logging for debugging
         self.logger.info(transaction)
         payment_method = transaction.get("paymentMethod")
         notes = transaction.get("notes")
 
-        # Get/Create the customer.
+        # Get/Create the customer
         ext_customer_id = transaction.pop("extCustomerId", None)
         ns_customer_id = transaction.pop("nsCustomerId", None)
         customer = self.get_customer(ext_customer_id, ns_customer_id, transaction)
         transaction.update({"entity": RecordRef(internalId=customer.internalId)})
 
-        # Get lookup select values.
+        # Get lookup select values
         transaction = dict(
             transaction,
             **self.get_lookup_select_values(
@@ -1100,7 +1113,7 @@ class SOAPConnector(object):
             ),
         )
 
-        # Replace the term with the customer term.
+        # Replace the term with the customer term
         if (
             customer.terms
             and transaction.get("terms") is None
@@ -1190,9 +1203,7 @@ class SOAPConnector(object):
             )
 
         transaction = {
-            k: v
-            for k, v in transaction.items()
-            if k in transaction_attributes
+            k: v for k, v in transaction.items() if k in transaction_attributes
         }
         self.logger.info(transaction)
 
