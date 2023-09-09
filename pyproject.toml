@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.poetry]
 name = "SuiteTalk-Connector"
-version = "0.0.1"
+version = "0.0.2.beta"
 description = "Use to connect NetSuite SuiteTalk SOAP API."
 authors = ["Idea Bosque <ideabosque@gmail.com>"]
 license = { file = "LICENSE" }
