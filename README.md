@@ -37,6 +37,10 @@ By leveraging the SuiteTalk Connector, developers can unlock the full potential 
 To install the SuiteTalk Connector using pip and Git, run the following command:
 
 ```shell
+$ python -m pip install SuiteTalk-Connector
+```
+or
+```shell
 $ python -m pip install 'git+ssh://git@github.com/ideabosque/suitetalk_connector.git@main#egg=suitetalk_connector'
 ```
 
