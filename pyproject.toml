@@ -17,8 +17,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 readme = "README.md"
-=====================
-"""
 repository = "https://github.com/ideabosque/suitetalk_connector"
 
 [tool.poetry.dependencies]
