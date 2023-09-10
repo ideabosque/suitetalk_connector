@@ -7,7 +7,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="SuiteTalk-Connector",
-    version="0.0.1",
+    version="0.0.2.beta.1",
     url="https://github.com/ideabosque/suitetalk_connector",
     license="MIT",
     author="Idea Bosque",
@@ -19,7 +19,13 @@ setup(
     include_package_data=True,
     platforms="any",
     install_requires=["zeep", "tenacity", "requests", "warlock"],
-    keywords=["DataWald", "NetSuite", "SuiteTalk"],  # arbitrary keywords
+    keywords=[
+        "DataWald",
+        "NetSuite",
+        "SuiteTalk",
+        "Integration",
+        "API",
+    ],  # arbitrary keywords
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",

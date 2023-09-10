@@ -360,24 +360,12 @@ class RESTConnector(object):
             return matched_obj["addr"]
         return None
 
-    def insert_update_transaction(self, record_type, transaction):
-        payment_method = transaction.get("paymentMethod")
-
-        # Lookup select values.
-        for key, value in transaction.items():
-            if key in self.setting["NETSUITEMAPPINGS"]["lookup_select_values"].keys():
-                transaction.update(
-                    {key: {"id": self.get_select_value_id(value, key, record_type)}}
-                )
-
-        # Get/Create the customer.
-        extCustomerId = transaction.pop("extCustomerId", None)
-        nsCustomerId = transaction.pop("nsCustomerId", None)
+    def get_customer(self, ext_customer_id, ns_customer_id):
         customer = self.get_record_by_variables(
             "customer",
             **{
-                "externalId": extCustomerId,
-                self.lookup_record_fields["customer"]["field"]: nsCustomerId,
+                "externalId": ext_customer_id,
+                self.lookup_record_fields["customer"]["field"]: ns_customer_id,
             },
         )
 
@@ -387,26 +375,28 @@ class RESTConnector(object):
                 ## Create customer.
             else:
                 raise Exception(
-                    f"Cannot find the customer with entity_id ({nsCustomerId}), or ({extCustomerId})."
+                    f"Cannot find the customer with entity_id ({ns_customer_id}), or ({ext_customer_id})."
                 )
 
         self.logger.info(
-            f"Customer: {customer['email']}/{customer['id']} by {nsCustomerId}/{extCustomerId}."
+            f"Customer: {customer['email']}/{customer['id']} by {ns_customer_id}/{ext_customer_id}."
         )
-        transaction.update({"entity": {"id": customer["id"]}})
 
-        # Replace the term with the customer term.
-        if customer.get("terms") and transaction.get("terms") is None:
-            transaction.update({"terms": {"id": customer["terms"]["id"]}})
+        return customer
 
-        # Items
+    def get_transaction_items(self, record_type, _items, pricelevel=None, status=None):
+        # Initialize variables
         message = None
         transaction_items = []
-        for _item in transaction.pop("items"):
+
+        for _item in _items:
+            # Extract item attributes
             sku = _item.get("sku")
             qty = _item.get("qty")
             commit_inventory = _item.get("commitInventory")
             lot_no_locs = _item.get("lot_no_locs")
+
+            # Retrieve item information
             item = self.get_record_by_variables(
                 "inventoryItem",
                 **{self.lookup_record_fields["inventoryItem"]["field"]: sku},
@@ -417,23 +407,21 @@ class RESTConnector(object):
 
                 # Calculate item price level or customized price.
                 difference = -1
-                if transaction.get("priceLevel") and item.get("price"):
+                if pricelevel and item.get("price"):
                     _prices = list(
                         filter(
-                            lambda p: (
-                                p["priceLevelName"] == transaction.get("priceLevel")
-                            ),
+                            lambda p: p["priceLevelName"] == pricelevel,
                             item["price"]["items"],
                         )
                     )
-                    if len(_prices) > 0:
+                    if _prices:
                         _price = min(
-                            list(
-                                filter(
-                                    lambda p: p["quantity"] is None
-                                    or (float(p["quantity"]["value"]) <= float(qty)),
-                                    _prices,
-                                )
+                            filter(
+                                lambda p: (
+                                    p["quantity"] is None
+                                    or float(p["quantity"]["value"]) <= float(qty)
+                                ),
+                                _prices,
                             ),
                             key=lambda p: p["price"],
                         )
@@ -441,12 +429,12 @@ class RESTConnector(object):
                             float(_price["price"]) - float(_item["price"])
                             if _item.get("price")
                             else 0
-                        )  # If there is no price in the line item of the order, the price of the product will be used.
-
-                    if difference == 0:
-                        transaction_item.update(
-                            {"price": {"id": str(_price["priceLevel"]["id"])}}
                         )
+
+                        if difference == 0:
+                            transaction_item.update(
+                                {"price": {"id": str(_price["priceLevel"]["id"])}}
+                            )
 
                 if difference != 0 and _item.get("price"):
                     transaction_item.update(
@@ -463,7 +451,7 @@ class RESTConnector(object):
                 item_custom_fields = self.get_custom_fields(
                     record_type, _item.pop("customFields"), sublist="itemList"
                 )
-                if len(item_custom_fields.keys()) != 0:
+                if item_custom_fields:
                     transaction_item.update(item_custom_fields)
 
                 # Check if commit_inventory is None or not.
@@ -486,7 +474,9 @@ class RESTConnector(object):
                     inventory_assignments = []
                     for lot_no_loc in lot_no_locs:
                         inventory_number_id = self.get_record_id(
-                            "inventorynumber", "inventoryNumber", lot_no_loc["lot_no"]
+                            "inventorynumber",
+                            "inventoryNumber",
+                            lot_no_loc["lot_no"],
                         )
                         if inventory_number_id is None:
                             continue
@@ -497,7 +487,7 @@ class RESTConnector(object):
                         }
                         inventory_assignments.append(inventory_assignment)
 
-                    if len(inventory_assignments) > 0:
+                    if inventory_assignments:
                         transaction_item.update(
                             {
                                 "inventoryDetail": {
@@ -509,12 +499,47 @@ class RESTConnector(object):
                             }
                         )
 
+                # Check status and record type
+                if status == "Closed" and record_type == "salesOrder":
+                    transaction_item.update({"isClosed": True})
+
+                # Append the transaction item to the list
                 transaction_items.append(transaction_item)
                 self.logger.info(f"The item ({sku}/{item['id']}) is added.")
             else:
+                # Item not found
                 log = f"The item ({sku}) is removed since it cannot be found."
                 message = message + "\n" + log if message else log
                 self.logger.info(log)
+
+        return transaction_items, message
+
+    def insert_update_transaction(self, record_type, transaction):
+        payment_method = transaction.get("paymentMethod")
+
+        # Lookup select values.
+        for key, value in transaction.items():
+            if key in self.setting["NETSUITEMAPPINGS"]["lookup_select_values"].keys():
+                transaction.update(
+                    {key: {"id": self.get_select_value_id(value, key, record_type)}}
+                )
+
+        # Get/Create the customer.
+        ext_customer_id = transaction.pop("extCustomerId", None)
+        ns_customer_id = transaction.pop("nsCustomerId", None)
+        customer = self.get_customer(ext_customer_id, ns_customer_id)
+        transaction.update({"entity": {"id": customer["id"]}})
+
+        # Replace the term with the customer term.
+        if customer.get("terms") and transaction.get("terms") is None:
+            transaction.update({"terms": {"id": customer["terms"]["id"]}})
+
+        transaction_items, message = self.get_transaction_items(
+            record_type,
+            transaction.pop("items"),
+            pricelevel=transaction.get("priceLevel"),
+            status=transaction.get("status"),
+        )
 
         if message:
             transaction.update({"message": message})
@@ -559,6 +584,10 @@ class RESTConnector(object):
                     ).strftime(datetime_format)
                 }
             )
+
+        # orderStatus.
+
+        # Created From.
 
         # Order Custom Fields
         custom_fields = self.get_custom_fields(
