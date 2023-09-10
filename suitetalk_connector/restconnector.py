@@ -535,10 +535,10 @@ class RESTConnector(object):
             transaction.update({"terms": {"id": customer["terms"]["id"]}})
 
         transaction_items, message = self.get_transaction_items(
-            record_type, 
-            transaction.pop("items"), 
-            pricelevel=transaction.get("priceLevel"), 
-            status=transaction.get("status")
+            record_type,
+            transaction.pop("items"),
+            pricelevel=transaction.get("priceLevel"),
+            status=transaction.get("status"),
         )
 
         if message:
