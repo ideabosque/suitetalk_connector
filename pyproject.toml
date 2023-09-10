@@ -1,13 +1,9 @@
-[build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [tool.poetry]
 name = "SuiteTalk-Connector"
 version = "0.0.2.beta"
 description = "Use to connect NetSuite SuiteTalk SOAP API."
 authors = ["Idea Bosque <ideabosque@gmail.com>"]
-license = { file = "LICENSE" }
+license = "MIT"
 classifiers = [
     "Programming Language :: Python",
     "Environment :: Web Environment",
@@ -17,6 +13,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 readme = "README.md"
+homepage = "https://github.com/ideabosque/suitetalk_connector"
 repository = "https://github.com/ideabosque/suitetalk_connector"
 
 [tool.poetry.dependencies]
@@ -31,9 +28,3 @@ warlock = "^1.3.0"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.publish]
-repository = "https://pypi.org/legacy/"  # Production PyPI repository
-[[tool.poetry.publish]]
-name = "testpypi"  # Name for the dev repository (you can choose a custom name)
-url = "https://test.pypi.org/legacy/"  # URL for the dev repository (e.g., TestPyPI)

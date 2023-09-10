@@ -19,8 +19,13 @@ setup(
     include_package_data=True,
     platforms="any",
     install_requires=["zeep", "tenacity", "requests", "warlock"],
-    # download_url = 'https://github.com/ideabosque/SuiteTalk-Connector/tarball/0.0.2',
-    keywords=["DataWald", "NetSuite", "SuiteTalk"],  # arbitrary keywords
+    keywords=[
+        "DataWald",
+        "NetSuite",
+        "SuiteTalk",
+        "Integration",
+        "API",
+    ],  # arbitrary keywords
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
