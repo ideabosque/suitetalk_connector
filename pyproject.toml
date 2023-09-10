@@ -15,11 +15,14 @@ classifiers = [
 readme = "README.md"
 homepage = "https://github.com/ideabosque/suitetalk_connector"
 repository = "https://github.com/ideabosque/suitetalk_connector"
+include = [
+    "LICENSE",
+]
 
 [tool.poetry.dependencies]
 python = "^3.6"
 zeep = "^4.0.0"
-tenacity = "^7.0.0"
+tenacity = "^8.2.3"
 requests = "^2.25.1"
 warlock = "^1.3.0"
 
