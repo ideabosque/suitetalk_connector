@@ -686,6 +686,7 @@ class SOAPConnector(object):
         return None
 
     def get_customer(self, ext_customer_id, ns_customer_id, entity):
+        assert ext_customer_id or ns_customer_id, "Customer id is required."
         customer = self.get_record_by_variables(
             "customer",
             **{
