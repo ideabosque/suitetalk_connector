@@ -408,12 +408,11 @@ record = soap_connector.get_record(
 
 This method will return the record object corresponding to the specified record type and internal ID.
 
-### Get transactions
+### Retrieve Transactions
 
-Retrieve transactions based on the cut date and other parameters.
+You have the capability to fetch transactions based on the cut date and various other parameters using the SuiteTalk Connector. Let's delve into the available parameters:
 
-Parameters:
-- `record_type`: The transaction record type. Choose from the following options:
+- `record_type`: This parameter allows you to specify the transaction record type, offering a range of options, including:
   - "salesOrder"
   - "invoice"
   - "purchaseOrder"
@@ -427,41 +426,82 @@ Parameters:
   - "inventoryAdjustment"
   - "creditMemo"
   - "inventoryTransfer"
-- `kwargs`: Additional parameters for filtering and customization.
+- `kwargs`: Additional parameters that provide flexibility for fine-tuning and customization.
+
+Here's an illustrative example of how to retrieve transactions with the SuiteTalk Connector:
 
 ```python
+# Define filtering criteria using kwargs
 kwargs = {
     "cut_date": "2022-02-04T16:00:00+00:00",
+    "end_date": "2022-02-05T16:00:00+00:00",
     "limit": 100,
-    "hours": 0.25,
     "inventory_detail": True,
     "subsidiary": "ABC",
 }
 
-transactions = soap_connector.get_transactions(
+# Acquire the initial result containing search information
+result = soap_connector.get_transaction_result(
     "itemReceipt", **kwargs
+)
+
+records = soap_connector.get_transactions(
+    "itemReceipt", result["records"], **kwargs
 )
 ```
 
-This method will retrieve transactions of the specified record type based on the provided parameters.
+Additionally, you have the option to retrieve data using a search ID and page index, as demonstrated below:
 
-### Get items
+```python
+# Define the filtering criteria with search ID and page index
+kwargs = {
+   'search_id': 'WEBSERVICES_xxxxxxxxxxxxxxxxxxxxxxxxx', 
+   'page_index': 1, 
+}
 
-Retrieve items based on the cut date and other parameters.
+# Obtain the initial result containing search information using the search ID and page index
+result = soap_connector.get_transaction_result(
+    "itemReceipt", **kwargs
+)
 
-Parameters:
-- `record_type`: The item record type. Choose from the following options:
+records = soap_connector.get_transactions(
+    "itemReceipt", result["records"], **kwargs
+)
+```
+
+The result data returned by the `get_transaction_result` method includes essential information:
+
+```python
+{
+   'search_id': 'WEBSERVICES_xxxxxxxxxxxxxxxxxxxxxxxxx', 
+   'total_records': 85, 
+   'total_pages': 1, 
+   'page_index': 1, 
+   'records': [....]
+}
+```
+
+This method empowers you to retrieve transactions of the specified record type based on the provided parameters, granting you the flexibility to tailor your data retrieval process.
+
+### Retrieve Items
+
+To obtain specific items based on various criteria, you can harness the power of the SuiteTalk Connector. Let's break down the available parameters:
+
+- `record_type`: This parameter specifies the item record type you intend to retrieve. You can select from the following options:
   - "product"
   - "inventory"
   - "inventorylot"
   - "pricelevel"
-- `kwargs`: Additional parameters for filtering and customization.
+- `kwargs`: Additional parameters that offer advanced filtering and customization options.
+
+Here's an example demonstrating how to retrieve items:
 
 ```python
+# Set the filtering criteria using kwargs
 kwargs = {
     "cut_date": "2022-02-04T16:00:00+00:00",
+    "end_date": "2022-02-05T16:00:00+00:00",
     "limit": 100,
-    "hours": 1000,
     "subsidiary": "ABC",
     "item_types": [
         "inventoryItem",
@@ -472,24 +512,64 @@ kwargs = {
     },
 }
 
-items = soap_connector.get_items("inventoryLot", **kwargs)
+# Acquire the initial result containing search information
+result = soap_connector.get_item_result(
+    "inventoryLot", **kwargs
+)
+
+records = soap_connector.get_items(
+    "inventoryLot", result["records"], **kwargs
+)
 ```
 
-This method will retrieve items of the specified record type based on the provided parameters.
+Furthermore, you have the option to retrieve data using a search ID and page index, as demonstrated below:
 
-### Get persons
+```python
+# Define the filtering criteria, including the search ID and page index
+kwargs = {
+   'search_id': 'WEBSERVICES_xxxxxxxxxxxxxxxxxxxxxxxxx', 
+   'page_index': 1, 
+}
 
-Retrieve persons based on the cut date and other parameters.
+# Acquire the initial result containing search information using the search ID and page index
+result = soap_connector.get_item_result(
+    "inventoryLot", **kwargs
+)
 
-Parameters:
+records = soap_connector.get_items(
+    "itemReceipt", result["records"], **kwargs
+)
+```
+
+The result data returned by the `get_item_result` method contains vital information:
+
+```python
+{
+   'search_id': 'WEBSERVICES_xxxxxxxxxxxxxxxxxxxxxxxxx', 
+   'total_records': 85, 
+   'total_pages': 1, 
+   'page_index': 1, 
+   'records': [....]
+}
+```
+
+This method empowers you to access specific item records while providing flexibility in filtering and customization.
+
+### Get Persons
+
+You can also retrieve persons based on the cut date and other parameters using the SuiteTalk Connector. Here's an overview of the available parameters:
+
 - `record_type`: The person record type. Choose from the following options:
   - "customer"
   - "vendor"
   - "company"
   - "contact"
-- `kwargs`: Additional parameters for filtering and customization.
+- `kwargs`: Additional parameters for refining and customizing your query.
+
+Here's an example of how to retrieve persons:
 
 ```python
+# Define the filter criteria using kwargs
 kwargs = {
     "cut_date": "2022-02-04T16:00:00+00:00",
     "limit": 100,
@@ -497,20 +577,60 @@ kwargs = {
     "subsidiary": "ABC",
 }
 
-persons = soap_connector.get_persons("customer", **kwargs)
+# Obtain the initial result containing search information
+result = soap_connector.get_customer_result(
+    "customer", **kwargs
+)
+
+records = soap_connector.get_persons(
+    "customer", result["records"], **kwargs
+)
 ```
 
-This method will retrieve persons of the specified record type based on the provided parameters.
+Similarly, you have the option to retrieve data using a search ID and page index, as demonstrated below:
 
-**Parameters in `kwargs` for `get_transactions`, `get_items`, and `get_persons`:**
+```python
+# Define the filter criteria, including the search ID and page index
+kwargs = {
+   'search_id': 'WEBSERVICES_xxxxxxxxxxxxxxxxxxxxxxxxx', 
+   'page_index': 1, 
+}
 
-- `cut_date`: The last run of the cut date. Format: YYYY-MM-DDTHH:MM:SS.
-- `limit`: The limit amount of records to be retrieved.
-- `hours`: The period from the cut date in hours.
-- `inventory_detail` (for `get_transactions`): A boolean value indicating whether to retrieve the detail of inventory information.
-- `subsidiary`: The subsidiary of the company.
-- `item_types` (for `get_items`): A list of item record types to be retrieved.
-- `custom_fields` (for `get_items`): A dictionary of custom fields and their values to be used as conditions for retrieving data.
+# Obtain the initial result containing search information
+result = soap_connector.get_customer_result(
+    "customer", **kwargs
+)
+
+records = soap_connector.get_persons(
+    "customer", result["records"], **kwargs
+)
+```
+
+The result data returned by the `get_item_result` method contains crucial information:
+
+```python
+{
+   'search_id': 'WEBSERVICES_xxxxxxxxxxxxxxxxxxxxxxxxx', 
+   'total_records': 85, 
+   'total_pages': 1, 
+   'page_index': 1, 
+   'records': [....]
+}
+```
+
+This approach equips you to retrieve persons of the specified record type, enabling you to further tailor your data retrieval process as needed.
+
+**Parameters within `kwargs` for `get_transactions`, `get_items`, and `get_persons`:**
+
+- `cut_date`: This parameter signifies the timestamp of the most recent cut-off date. Format: YYYY-MM-DDTHH:MM:SS.
+- `end_date`: The concluding date for processing the request. Format: YYYY-MM-DDTHH:MM:SS.
+- `hours`: The time span in hours, starting from the cut date.
+- `inventory_detail` (for `get_transactions`): A boolean value indicating whether to obtain detailed inventory information.
+- `subsidiary`: Denotes the subsidiary of the company.
+- `item_types` (for `get_items`): A list enumerating the item record types to retrieve.
+- `custom_fields` (for `get_items`): A dictionary specifying custom fields and their corresponding values to serve as filtering conditions.
+- `search_id` (for pagination): Facilitates retrieval of prior search results.
+- `page_index` (for pagination): Indicates the page index to retrieve from previous search results.
 
 ### Inserting or Updating Transactions
 
