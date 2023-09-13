@@ -578,7 +578,7 @@ kwargs = {
 }
 
 # Obtain the initial result containing search information
-result = soap_connector.get_customer_result(
+result = soap_connector.get_person_result(
     "customer", **kwargs
 )
 
@@ -597,7 +597,7 @@ kwargs = {
 }
 
 # Obtain the initial result containing search information
-result = soap_connector.get_customer_result(
+result = soap_connector.get_person_result(
     "customer", **kwargs
 )
 
@@ -606,7 +606,7 @@ records = soap_connector.get_persons(
 )
 ```
 
-The result data returned by the `get_item_result` method contains crucial information:
+The result data returned by the `get_person_result` method contains crucial information:
 
 ```python
 {
@@ -620,7 +620,7 @@ The result data returned by the `get_item_result` method contains crucial inform
 
 This approach equips you to retrieve persons of the specified record type, enabling you to further tailor your data retrieval process as needed.
 
-**Parameters within `kwargs` for `get_transactions`, `get_items`, and `get_persons`:**
+**Parameters within `kwargs` for `get_transaction_result`, `get_item_result`, and `get_person_result`:**
 
 - `cut_date`: This parameter signifies the timestamp of the most recent cut-off date. Format: YYYY-MM-DDTHH:MM:SS.
 - `end_date`: The concluding date for processing the request. Format: YYYY-MM-DDTHH:MM:SS.
