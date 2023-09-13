@@ -185,13 +185,41 @@ class SOAPAdaptor(object):
             self.logger.error(status_detail)
             raise Exception(status_detail)
 
+    def process_search_result(self, search_result, advance=False):
+        is_success = search_result["status"]["isSuccess"]
+        total_records = search_result["totalRecords"]
+        total_pages = search_result["totalPages"]
+        page_index = search_result["pageIndex"]
+        search_id = search_result["searchId"]
+
+        if not is_success:
+            status_detail = search_result["status"]["statusDetail"]
+            raise Exception(status_detail)
+
+        return {
+            "search_id": search_id,
+            "total_records": total_records,
+            "total_pages": total_pages,
+            "page_index": page_index,
+            "records": (
+                search_result["searchRowList"]["searchRow"]
+                if search_result["searchRowList"]
+                else []
+            )
+            if advance
+            else (
+                search_result["recordList"]["record"]
+                if search_result["recordList"]
+                else []
+            ),
+        }
+
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
         stop=stop_after_attempt(5),
     )
-    def search(self, search_record=None, search_preferences=None, advance=False):
-        limit_pages = self.setting.get("LIMIT_PAGES", 3)
+    def search(self, search_record, search_preferences=None, advance=False):
         soapheaders = {
             "tokenPassport": self.token_passport,
             "applicationInfo": self.application_info,
@@ -203,42 +231,9 @@ class SOAPAdaptor(object):
         response = self.service.search(
             searchRecord=search_record, _soapheaders=soapheaders
         )
-        search_result = response["body"]["searchResult"]
-        is_success = search_result["status"]["isSuccess"]
-        total_records = search_result["totalRecords"]
-        total_pages = search_result["totalPages"]
-        page_index = search_result["pageIndex"]
-        search_id = search_result["searchId"]
-
-        if not is_success:
-            status_detail = search_result["status"]["statusDetail"]
-            raise Exception(status_detail)
-
-        if total_records == 0:
-            return None
-
-        records = []
-
-        if advance:
-            records.extend(search_result["searchRowList"]["searchRow"])
-        else:
-            records.extend(search_result["recordList"]["record"])
-
-        self.logger.info(
-            f"Total_records/Total_pages {total_records}/{total_pages}: {len(records)} records at page {page_index}."
+        return self.process_search_result(
+            response["body"]["searchResult"], advance=advance
         )
-
-        limit_pages = total_pages if limit_pages == 0 else min(limit_pages, total_pages)
-
-        while page_index < limit_pages:
-            page_index += 1
-            _records = self.search_more_with_id(search_id, page_index, advance=advance)
-            records.extend(_records)
-            self.logger.info(
-                f"Total_records/Total_pages {total_records}/{total_pages}: {len(_records)}/{len(records)} records at page {page_index}."
-            )
-
-        return records
 
     @retry(
         reraise=True,
@@ -254,22 +249,9 @@ class SOAPAdaptor(object):
         response = self.service.searchMoreWithId(
             searchId=search_id, pageIndex=page_index, _soapheaders=soapheaders
         )
-
-        search_result = response["body"]["searchResult"]
-        is_success = search_result["status"]["isSuccess"]
-        total_records = search_result["totalRecords"]
-
-        if not is_success:
-            status_detail = search_result["status"]["statusDetail"]
-            raise Exception(status_detail)
-
-        if total_records > 0:
-            if advance:
-                return search_result["searchRowList"]["searchRow"]
-            else:
-                return search_result["recordList"]["record"]
-        else:
-            return []
+        return self.process_search_result(
+            response["body"]["searchResult"], advance=advance
+        )
 
     @retry(
         reraise=True,

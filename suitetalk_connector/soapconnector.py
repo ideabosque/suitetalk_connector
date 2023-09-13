@@ -78,6 +78,11 @@ class SOAPConnector(object):
             search_record, search_preferences=search_preferences, advance=advance
         )
 
+    def search_more_with_id(self, search_id, page_index, advance=False):
+        return self.soap_adaptor.search_more_with_id(
+            search_id, page_index, advance=advance
+        )
+
     def add(self, record):
         return self.soap_adaptor.add(record)
 
@@ -172,9 +177,10 @@ class SOAPConnector(object):
                 "scriptId": SearchStringField(searchValue=script_id, operator="is"),
             }
         )
-        records = self.search(search_record, search_preferences=search_preferences)
-        if records is not None:
-            return records[-1]
+        result = self.search(search_record, search_preferences=search_preferences)
+        assert result["total_pages"] <= 1, "More than one page!!!"
+        if result["total_records"] > 0:
+            return result["records"][-1]
         return None
 
     def get_custom_record(self, rec_type_id, field, value):
@@ -203,43 +209,16 @@ class SOAPConnector(object):
                     field: SearchStringField(searchValue=value, operator="is"),
                 }
             )
-        records = self.search(search_record, search_preferences=search_preferences)
-        if records is not None:
-            return records[-1]
+        result = self.search(search_record, search_preferences=search_preferences)
+        assert result["total_pages"] <= 1, "More than one page!!!"
+        if result["total_records"] > 0:
+            return result["records"][-1]
         return None
 
-    def get_custom_records(self, rec_type_id, **kwargs):
-        SearchPreferences = self.get_data_type("ns4:SearchPreferences")
-        CustomRecordSearchBasic = self.get_data_type("ns5:CustomRecordSearchBasic")
-        RecordRef = self.get_data_type("ns0:RecordRef")
-        SearchDateField = self.get_data_type("ns0:SearchDateField")
-
-        cut_date = kwargs.get("cut_date")
-        end_date = kwargs.get("end_date")
+    def get_custom_records(self, _records, **kwargs):
         limit = int(kwargs.get("limit", 100))
-        hours = float(kwargs.get("hours", 0))
 
-        search_preferences = SearchPreferences(bodyFieldsOnly=False)
-
-        begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
-        if hours == 0:
-            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
-        else:
-            end = begin + timedelta(hours=hours)
-
-        record_ref = RecordRef(internalId=rec_type_id)
-        search_record = CustomRecordSearchBasic(
-            recType=record_ref,
-            lastModified=SearchDateField(
-                searchValue=begin, searchValue2=end, operator="within"
-            ),
-        )
         records = []
-        _records = self.search(search_record, search_preferences=search_preferences)
-
-        if _records is None:
-            return records
-
         _records = sorted(_records, key=lambda x: x["lastModified"], reverse=True)
         while len(_records):
             if (
@@ -251,6 +230,36 @@ class SOAPConnector(object):
             _record = _records.pop()
             records.append(_record)
         return records
+
+    def get_custom_record_result(self, rec_type_id, **kwargs):
+        if kwargs.get("search_id") and kwargs.get("page_index"):
+            return self.search_more_with_id(
+                kwargs.get("search_id"), kwargs.get("page_index")
+            )
+
+        SearchPreferences = self.get_data_type("ns4:SearchPreferences")
+        CustomRecordSearchBasic = self.get_data_type("ns5:CustomRecordSearchBasic")
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        SearchDateField = self.get_data_type("ns0:SearchDateField")
+
+        cut_date = kwargs.get("cut_date")
+        end_date = kwargs.get("end_date")
+
+        search_preferences = SearchPreferences(bodyFieldsOnly=False)
+
+        assert cut_date and end_date, "cut_date and end_date are required!!!"
+        begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
+        end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
+
+        record_ref = RecordRef(internalId=rec_type_id)
+        search_record = CustomRecordSearchBasic(
+            recType=record_ref,
+            lastModified=SearchDateField(
+                searchValue=begin, searchValue2=end, operator="within"
+            ),
+        )
+
+        return self.search(search_record, search_preferences=search_preferences)
 
     def get_records_by_lookup(
         self, record_type, search_data_type, field, value, operator="contains"
@@ -300,9 +309,10 @@ class SOAPConnector(object):
             )
 
         search_record = RecordSearchBasic(**params)
-        records = self.search(search_record, search_preferences=search_preferences)
-        if records:
-            return records
+        result = self.search(search_record, search_preferences=search_preferences)
+        assert result["total_pages"] <= 1, "More than one page!!!"
+        if result["total_records"] > 0:
+            return result["records"]
         return None
 
     def get_record_by_lookup(
@@ -1569,7 +1579,26 @@ class SOAPConnector(object):
         record = self.add(Item(**item))
         return record.internalId
 
-    def get_persons(self, record_type, **kwargs):
+    def get_persons(self, record_type, records, **kwargs):
+        limit = int(kwargs.get("limit", 100))
+        persons = []
+        if records:
+            for record in sorted(
+                records, key=lambda x: x["lastModifiedDate"], reverse=False
+            )[:limit]:
+                if record_type == "customer" and record.salesRep:
+                    record.salesRep = self.get_record(
+                        "employee", record.salesRep.internalId
+                    )
+                persons.append(record)
+        return persons
+
+    def get_person_result(self, record_type, **kwargs):
+        if kwargs.get("search_id") and kwargs.get("page_index"):
+            return self.search_more_with_id(
+                kwargs.get("search_id"), kwargs.get("page_index")
+            )
+
         SearchPreferences = self.get_data_type("ns4:SearchPreferences")
         SearchBooleanField = self.get_data_type("ns0:SearchBooleanField")
         SearchDateField = self.get_data_type("ns0:SearchDateField")
@@ -1581,7 +1610,6 @@ class SOAPConnector(object):
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
         limit = int(kwargs.get("limit", 100))
-        hours = float(kwargs.get("hours", 0))
         subsidiary = kwargs.get("subsidiary")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
@@ -1597,11 +1625,9 @@ class SOAPConnector(object):
                 ),
             )
         else:
+            assert cut_date and end_date, "cut_date and end_date are required!!!"
             begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
-            if hours == 0:
-                end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
-            else:
-                end = begin + timedelta(hours=hours)
+            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
 
             search_record = RecordSearchBasic(
                 # isInactive=SearchBooleanField(searchValue=False),
@@ -1610,12 +1636,8 @@ class SOAPConnector(object):
                 ),
             )
 
-            self.logger.info(
-                f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
-            )
-            self.logger.info(
-                f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
-            )
+            self.logger.info(f"Begin: {begin.strftime('%Y-%m-%dT%H:%M:%S%z')}")
+            self.logger.info(f"End: {end.strftime('%Y-%m-%dT%H:%M:%S%z')}")
 
         if subsidiary:
             record = self.get_record_by_variables(
@@ -1629,18 +1651,7 @@ class SOAPConnector(object):
                 searchValue=[record_ref], operator="anyOf"
             )
 
-        persons = []
-        records = self.search(search_record, search_preferences=search_preferences)
-        if records:
-            for record in sorted(
-                records, key=lambda x: x["lastModifiedDate"], reverse=False
-            )[:limit]:
-                if record_type == "customer" and record.salesRep:
-                    record.salesRep = self.get_record(
-                        "employee", record.salesRep.internalId
-                    )
-                persons.append(record)
-        return persons
+        return self.search(search_record, search_preferences=search_preferences)
 
     def get_inventory_numbers(self, **kwargs):
         RecordRef = self.get_data_type("ns0:RecordRef")
@@ -1710,7 +1721,12 @@ class SOAPConnector(object):
                 )
             ),
         )
-        rows = self.search(search_record, advance=True)
+
+        rows = []
+        result = self.search(search_record, advance=True)
+        assert result["total_pages"] <= 1, "More than one page!!!"
+        if result["total_records"] > 0:
+            rows = result["records"]
         for record in records:
             _rows = list(
                 filter(
@@ -1745,9 +1761,10 @@ class SOAPConnector(object):
                 )
             ),
         )
-        rows = self.search(search_record, advance=True)
-        if rows and len(rows) > 0:
-            return rows[0].basic.lastQuantityAvailableChange[0].searchValue
+        result = self.search(search_record, advance=True)
+        assert result["total_pages"] <= 1, "More than one page!!!"
+        if result["total_records"] > 0:
+            return result["records"][0].basic.lastQuantityAvailableChange[0].searchValue
         return None
 
     def get_inventory_detail_by_transaction(self, record_type, internal_id):
@@ -1787,8 +1804,10 @@ class SOAPConnector(object):
                 )
             ),
         )
-        rows = self.search(search_record, advance=True)
-        return self.get_values_for_inventory_detail(rows)
+        result = self.search(search_record, advance=True)
+        assert result["total_records"] > 0, "No records found!!!"
+        assert result["total_pages"] <= 1, "More than one page!!!"
+        return self.get_values_for_inventory_detail(result["records"])
 
     def get_inventory_detail(self, internal_id, use_bin_number=False):
         RecordRef = self.get_data_type("ns0:RecordRef")
@@ -1837,12 +1856,17 @@ class SOAPConnector(object):
             ),
             criteria=item_search,
         )
-        rows = self.search(search_record, advance=True)
-        return self.get_values_for_inventory_detail(rows)
+        result = self.search(search_record, advance=True)
+        assert result["total_records"] > 0, "No records found!!!"
+        assert result["total_pages"] <= 1, "More than one page!!!"
+        return self.get_values_for_inventory_detail(result["records"])
 
     def get_values_for_inventory_detail(self, rows):
         entities = []
         for row in rows:
+            if row["inventoryDetailJoin"] is None:
+                continue
+
             entity = {}
             for key in row["inventoryDetailJoin"]:
                 entity[key] = None
@@ -1865,7 +1889,31 @@ class SOAPConnector(object):
             entities.append(entity)
         return entities
 
-    def get_items(self, record_type, **kwargs):
+    def get_items(self, record_type, records, **kwargs):
+        limit = int(kwargs.get("limit", 100))
+        items = []
+        records = sorted(records, key=lambda x: x["lastModifiedDate"], reverse=True)
+        while len(records) > 0:
+            if (
+                len(items) >= limit
+                and items[len(items) - 1]["lastModifiedDate"]
+                != records[len(records) - 1]["lastModifiedDate"]
+            ):
+                break
+            record = records.pop()
+            if record_type == "inventoryLot":
+                record["inventoryNumbers"] = self.get_inventory_numbers(
+                    **{"item_internal_id": record.internalId}
+                )
+            items.append(record)
+        return items
+
+    def get_item_result(self, record_type, **kwargs):
+        if kwargs.get("search_id") and kwargs.get("page_index"):
+            return self.search_more_with_id(
+                kwargs.get("search_id"), kwargs.get("page_index")
+            )
+
         SearchPreferences = self.get_data_type("ns4:SearchPreferences")
         ItemSearchBasic = self.get_data_type("ns5:ItemSearchBasic")
         SearchEnumMultiSelectField = self.get_data_type(
@@ -1881,7 +1929,6 @@ class SOAPConnector(object):
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
         limit = int(kwargs.get("limit", 100))
-        hours = float(kwargs.get("hours", 0))
         item_types = kwargs.get(
             "item_types",
             [
@@ -1913,11 +1960,9 @@ class SOAPConnector(object):
                 ),
             )
         else:
+            assert cut_date and end_date, "cut_date and end_date are required!!!"
             begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
-            if hours == 0:
-                end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
-            else:
-                end = begin + timedelta(hours=hours)
+            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
 
             search_date_field = SearchDateField(
                 searchValue=begin, searchValue2=end, operator="within"
@@ -1936,12 +1981,8 @@ class SOAPConnector(object):
             else:
                 search_record.lastModifiedDate = search_date_field
 
-            self.logger.info(
-                f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
-            )
-            self.logger.info(
-                f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
-            )
+            self.logger.info(f"Begin: {begin.strftime('%Y-%m-%dT%H:%M:%S%z')}")
+            self.logger.info(f"End: {end.strftime('%Y-%m-%dT%H:%M:%S%z')}")
 
         if vendor_name:
             search_record.vendorName = SearchStringField(
@@ -1969,30 +2010,14 @@ class SOAPConnector(object):
                 customField=search_custom_fields
             )
 
-        items = []
-        records = self.search(search_record, search_preferences=search_preferences)
-        if records:
-            if (
-                record_type in ["inventory", "inventoryLot"]
-                and last_qty_available_change
-            ):
-                self.get_last_qty_available_change_for_items(records)
-            records = sorted(records, key=lambda x: x["lastModifiedDate"], reverse=True)
-            while len(records) > 0:
-                if (
-                    len(items) >= limit
-                    and items[len(items) - 1]["lastModifiedDate"]
-                    != records[len(records) - 1]["lastModifiedDate"]
-                ):
-                    break
-                record = records.pop()
-                if record_type == "inventoryLot":
-                    record["inventoryNumbers"] = self.get_inventory_numbers(
-                        **{"item_internal_id": record.internalId}
-                    )
-                items.append(record)
-
-        return items
+        result = self.search(search_record, search_preferences=search_preferences)
+        if (
+            record_type in ["inventory", "inventoryLot"]
+            and last_qty_available_change
+            and result["total_records"] > 0
+        ):
+            self.get_last_qty_available_change_for_items(result["records"])
+        return result
 
     def get_transactions_by_created_from(self, record_type, **kwargs):
         SearchPreferences = self.get_data_type("ns4:SearchPreferences")
@@ -2017,9 +2042,10 @@ class SOAPConnector(object):
             ),
         )
 
-        records = self.search(search_record, search_preferences=search_preferences)
-        if records:
-            return records
+        result = self.search(search_record, search_preferences=search_preferences)
+        assert result["total_pages"] <= 1, "More than one page!!!"
+        if result["total_records"] > 0:
+            return result["records"]
         return []
 
     def join_entity(self, entity_type, record, value, entities):
@@ -2077,9 +2103,11 @@ class SOAPConnector(object):
                     searchValue=internal_ids[i : i + 500], operator="anyOf"
                 )
             )
-            records.extend(
-                self.search(search_record, search_preferences=search_preferences)
-            )
+
+            result = self.search(search_record, search_preferences=search_preferences)
+            assert result["total_pages"] <= 1, "More than one page!!!"
+            if result["total_records"] > 0:
+                records.extend(result["records"])
 
         return {record.internalId: record for record in records}
 
@@ -2112,7 +2140,57 @@ class SOAPConnector(object):
                     internal_id
                 ]["pricingMatrix"]
 
-    def get_transactions(self, record_type, **kwargs):
+    def get_transactions(self, record_type, records, **kwargs):
+        limit = int(kwargs.get("limit", 100))
+        item_detail = kwargs.get("item_detail", False)
+        inventory_detail = kwargs.get("inventory_detail", False)
+
+        transactions = []
+        records = sorted(records, key=lambda x: x["lastModifiedDate"], reverse=True)
+        while len(records):
+            if (
+                len(transactions) >= limit
+                and transactions[len(transactions) - 1]["lastModifiedDate"]
+                != records[len(records) - 1]["lastModifiedDate"]
+            ):
+                break
+            record = records.pop()
+
+            if inventory_detail and record_type in self.inventory_detail_record_types:
+                if record_type in ["inventoryTransfer", "inventoryAdjustment"]:
+                    record.inventoryList = self.get_record(
+                        record_type, record.internalId
+                    ).inventoryList
+                else:
+                    record.itemList = self.get_record(
+                        record_type, record.internalId
+                    ).itemList
+
+            if item_detail and record_type in self.item_detail_record_types:
+                self.update_line_items(record)
+
+            for entity_type, value in self.lookup_join_fields.items():
+                if record_type in value.get("created_from_types", []):
+                    entities = self.get_transactions_by_created_from(
+                        entity_type,
+                        **{
+                            "created_from_internal_id": record.internalId,
+                            "created_from_type": record_type,
+                        },
+                    )
+                    if entities:
+                        self.join_entity(entity_type, record, value, entities)
+
+            transactions.append(record)
+
+        return transactions
+
+    def get_transaction_result(self, record_type, **kwargs):
+        if kwargs.get("search_id") and kwargs.get("page_index"):
+            return self.search_more_with_id(
+                kwargs.get("search_id"), kwargs.get("page_index")
+            )
+
         SearchPreferences = self.get_data_type("ns4:SearchPreferences")
         TransactionSearchBasic = self.get_data_type("ns5:TransactionSearchBasic")
         SearchEnumMultiSelectField = self.get_data_type(
@@ -2125,11 +2203,8 @@ class SOAPConnector(object):
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
         limit = int(kwargs.get("limit", 100))
-        hours = float(kwargs.get("hours", 0))
         vendor_id = kwargs.get("vendor_id")
         subsidiary = kwargs.get("subsidiary")
-        item_detail = kwargs.get("item_detail", False)
-        inventory_detail = kwargs.get("inventory_detail", False)
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
         if kwargs.get("internal_ids"):
@@ -2146,11 +2221,9 @@ class SOAPConnector(object):
                 ),
             )
         else:
+            assert cut_date and end_date, "cut_date and end_date are required!!!"
             begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
-            if hours == 0:
-                end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
-            else:
-                end = begin + timedelta(hours=hours)
+            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
 
             search_date_field = SearchDateField(
                 searchValue=begin, searchValue2=end, operator="within"
@@ -2162,12 +2235,8 @@ class SOAPConnector(object):
                 ),
                 lastModifiedDate=search_date_field,
             )
-            self.logger.info(
-                f"Begin: {begin.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
-            )
-            self.logger.info(
-                f"End: {end.astimezone(timezone('UTC')).strftime('%Y-%m-%dT%H:%M:%S%z')}"
-            )
+            self.logger.info(f"Begin: {begin.strftime('%Y-%m-%dT%H:%M:%S%z')}")
+            self.logger.info(f"End: {end.strftime('%Y-%m-%dT%H:%M:%S%z')}")
 
         if vendor_id:
             record_ref = RecordRef(internalId=vendor_id)
@@ -2187,50 +2256,7 @@ class SOAPConnector(object):
                 searchValue=[record_ref], operator="anyOf"
             )
 
-        transactions = []
-        records = self.search(search_record, search_preferences=search_preferences)
-        if records:
-            records = sorted(records, key=lambda x: x["lastModifiedDate"], reverse=True)
-            while len(records):
-                if (
-                    len(transactions) >= limit
-                    and transactions[len(transactions) - 1]["lastModifiedDate"]
-                    != records[len(records) - 1]["lastModifiedDate"]
-                ):
-                    break
-                record = records.pop()
-
-                if (
-                    inventory_detail
-                    and record_type in self.inventory_detail_record_types
-                ):
-                    if record_type in ["inventoryTransfer", "inventoryAdjustment"]:
-                        record.inventoryList = self.get_record(
-                            record_type, record.internalId
-                        ).inventoryList
-                    else:
-                        record.itemList = self.get_record(
-                            record_type, record.internalId
-                        ).itemList
-
-                if item_detail and record_type in self.item_detail_record_types:
-                    self.update_line_items(record)
-
-                for entity_type, value in self.lookup_join_fields.items():
-                    if record_type in value.get("created_from_types", []):
-                        entities = self.get_transactions_by_created_from(
-                            entity_type,
-                            **{
-                                "created_from_internal_id": record.internalId,
-                                "created_from_type": record_type,
-                            },
-                        )
-                        if entities:
-                            self.join_entity(entity_type, record, value, entities)
-
-                transactions.append(record)
-
-        return transactions
+        return self.search(search_record, search_preferences=search_preferences)
 
     def get_files(self, internal_ids):
         SearchPreferences = self.get_data_type("ns4:SearchPreferences")
@@ -2243,11 +2269,11 @@ class SOAPConnector(object):
         )
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
-        records = self.search(search_record, search_preferences=search_preferences)
-        if records is not None:
-            return records
-        else:
-            return None
+        result = self.search(search_record, search_preferences=search_preferences)
+        assert result["total_pages"] <= 1, "More than one page!!!"
+        if result["total_records"] > 0:
+            return result["records"]
+        return None
 
     def advance_search(self, entity_type, saved_search_id, **kwargs):
         SearchDateField = self.get_data_type("ns0:SearchDateField")
@@ -2270,16 +2296,9 @@ class SOAPConnector(object):
             raise Exception(f"entity_type ({entity_type}) is not supported!!!")
 
         search_basic = None
-        if kwargs.get("cut_date") and kwargs.get("hours"):
+        if kwargs.get("cut_date") and kwargs.get("end_date"):
             begin = datetime.strptime(kwargs.get("cut_date"), "%Y-%m-%dT%H:%M:%S%z")
-            if kwargs.get("hours") == 0:
-                end = (
-                    datetime.now(
-                        tz=timezone(self.setting.get("TIMEZONE", "UTC"))
-                    ).strftime("%Y-%m-%dT%H:%M:%S%z"),
-                )
-            else:
-                end = begin + timedelta(hours=kwargs.get("hours"))
+            end = datetime.strptime(kwargs.get("end_date"), "%Y-%m-%dT%H:%M:%S%z")
 
             last_modified_date = SearchDateField(
                 searchValue=begin, searchValue2=end, operator="within"
@@ -2304,8 +2323,7 @@ class SOAPConnector(object):
         if criteria:
             search_record.criteria = criteria
 
-        rows = self.search(search_record, advance=True)
-        return rows
+        return self.search(search_record, advance=True)
 
     def get_deleted_records(self, record_type, **kwargs):
         GetDeletedFilter = self.get_data_type("ns0:GetDeletedFilter")
@@ -2319,13 +2337,10 @@ class SOAPConnector(object):
         page_index = int(kwargs.get("page_index", 1))
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
-        hours = float(kwargs.get("hours", 0))
-
+        
+        assert cut_date and end_date, "cut_date and end_date are required!!!"
         begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
-        if hours == 0:
-            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
-        else:
-            end = begin + timedelta(hours=hours)
+        end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
 
         search_date_field = SearchDateField(
             searchValue=begin, searchValue2=end, operator="within"
