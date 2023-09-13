@@ -2169,8 +2169,15 @@ class SOAPConnector(object):
             if item_detail and record_type in self.item_detail_record_types:
                 self.update_line_items(record)
 
+            ## Process join fields.
             for entity_type, value in self.lookup_join_fields.items():
-                if record_type in value.get("created_from_types", []):
+                self.logger.info(
+                    f"Processing {entity_type} join field for {record.internalId}"
+                )
+                if record_type not in value.get("created_from_types", []):
+                    continue
+
+                try:
                     entities = self.get_transactions_by_created_from(
                         entity_type,
                         **{
@@ -2180,6 +2187,10 @@ class SOAPConnector(object):
                     )
                     if entities:
                         self.join_entity(entity_type, record, value, entities)
+                except:
+                    self.logger.exception(
+                        f"Failed {entity_type} join field for {record.internalId}"
+                    )
 
             transactions.append(record)
 
@@ -2337,7 +2348,7 @@ class SOAPConnector(object):
         page_index = int(kwargs.get("page_index", 1))
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
-        
+
         assert cut_date and end_date, "cut_date and end_date are required!!!"
         begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
         end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
