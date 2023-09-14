@@ -143,24 +143,14 @@ class SOAPAdaptor(object):
             "applicationInfo": self.application_info,
         }
         response = self.service.add(record=record, _soapheaders=soapheaders)
-        if response["body"]["writeResponse"]["status"]["isSuccess"] == True:
-            record = response["body"]["writeResponse"]["baseRef"]
-            return record
-        else:
-            ## Additonal check if the record is inserted or not.
-            if hasattr(response["body"]["writeResponse"], "baseRef"):
-                record = response["body"]["writeResponse"]["baseRef"]
-                if record:
-                    return record
-            status_detail = response["body"]["writeResponse"]["status"]["statusDetail"]
-            self.logger.error(status_detail)
-            _status_detail = [
-                status for status in status_detail if status["code"] not in ["DUP_ITEM"]
-            ]
-            if len(_status_detail) > 0:
-                raise Exception(_status_detail)
-            else:
-                return {"internalId": "DUP_ITEM"}
+        write_response = response["body"]["writeResponse"]
+        is_success = write_response["status"]["isSuccess"]
+
+        if not is_success:
+            raise Exception(write_response["status"]["statusDetail"])
+
+        updated_record = write_response["baseRef"]
+        return updated_record
 
     @retry(
         reraise=True,
@@ -177,13 +167,32 @@ class SOAPAdaptor(object):
         write_response = response["body"]["writeResponse"]
         is_success = write_response["status"]["isSuccess"]
 
-        if is_success:
-            updated_record = write_response["baseRef"]
-            return updated_record
-        else:
-            status_detail = write_response["status"]["statusDetail"]
-            self.logger.error(status_detail)
-            raise Exception(status_detail)
+        if not is_success:
+            raise Exception(write_response["status"]["statusDetail"])
+
+        updated_record = write_response["baseRef"]
+        return updated_record
+
+    @retry(
+        reraise=True,
+        wait=wait_exponential(multiplier=1, max=60),
+        stop=stop_after_attempt(5),
+    )
+    def update_insert(self, record=None):
+        soapheaders = {
+            "tokenPassport": self.token_passport,
+            "applicationInfo": self.application_info,
+        }
+
+        response = self.service.upsert(record=record, _soapheaders=soapheaders)
+        write_response = response["body"]["writeResponse"]
+        is_success = write_response["status"]["isSuccess"]
+
+        if not is_success:
+            raise Exception(write_response["status"]["statusDetail"])
+
+        updated_record = write_response["baseRef"]
+        return updated_record
 
     def process_search_result(self, search_result, advance=False):
         is_success = search_result["status"]["isSuccess"]
@@ -342,15 +351,10 @@ class SOAPAdaptor(object):
         )
 
         get_deleted_result = response["body"]["getDeletedResult"]
-        status = get_deleted_result["status"]
-        is_success = status["isSuccess"]
-        status_detail = status.get("statusDetail")
+        is_success = get_deleted_result["status"]["isSuccess"]
 
         if not is_success:
-            if status_detail:
-                raise Exception(status_detail)
-            else:
-                raise Exception("An error occurred while retrieving deleted records.")
+            raise Exception(get_deleted_result["status"]["statusDetail"])
 
         total_records = get_deleted_result["totalRecords"]
         total_pages = get_deleted_result["totalPages"]
