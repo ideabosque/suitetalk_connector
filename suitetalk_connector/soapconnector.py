@@ -86,8 +86,11 @@ class SOAPConnector(object):
     def add(self, record):
         return self.soap_adaptor.add(record)
 
-    def update(self, record, record_type=None):
+    def update(self, record):
         return self.soap_adaptor.update(record)
+
+    def update_insert(self, record):
+        return self.soap_adaptor.update_insert(record)
 
     def get_select_values(self, record_type, field, sublist=None):
         return self.soap_adaptor.get_select_values(record_type, field, sublist=sublist)
@@ -864,14 +867,12 @@ class SOAPConnector(object):
             "task",
             **{record_lookup["field"]: record_lookup_value},
         )
-
         if record:
             task.update({"internalId": record.internalId})
             self.update(Task(**task))
-        else:
-            record = self.add(Task(**task))
-            record = self.get_record("task", record.internalId)
+            return record.internalId
 
+        record = self.add(Task(**task))
         return record.internalId
 
     ## Get transaction items.
@@ -1243,7 +1244,7 @@ class SOAPConnector(object):
                     transaction.pop("status", None)
 
                 transaction.update({"internalId": record.internalId})
-                self.update(Transaction(**transaction), record_type=record_type)
+                self.update(Transaction(**transaction))
         else:
             record = self.add(Transaction(**transaction))
             record = self.get_record(record_type, record.internalId)
@@ -1434,14 +1435,10 @@ class SOAPConnector(object):
 
             if record:
                 person = self.get_person(person, contacts, record.internalId)
-                self.update(Person(**person), record_type=record_type)
+                self.update(Person(**person))
                 return record.internalId
 
         record = self.add(Person(**person))
-
-        person = self.get_person(person, contacts, record.internalId)
-        self.update(Person(**person), record_type=record_type)
-
         return record.internalId
 
     def insert_update_item(self, record_type, item):
@@ -1573,7 +1570,7 @@ class SOAPConnector(object):
                 not in self.setting["NETSUITEMAPPINGS"].get("PRESERVEDFIELDS", [])
             ]
             item.update({"internalId": record.internalId})
-            self.update(Item(**item), record_type=record_type)
+            self.update(Item(**item))
             return record.internalId
 
         record = self.add(Item(**item))
@@ -1900,7 +1897,9 @@ class SOAPConnector(object):
                 != records[len(records) - 1]["lastModifiedDate"]
             ):
                 break
+
             record = records.pop()
+            self.logger.info(f"Processing {record_type} for {record['internalId']}.")
             if record_type == "inventoryLot":
                 record["inventoryNumbers"] = self.get_inventory_numbers(
                     **{"item_internal_id": record.internalId}
@@ -2169,8 +2168,15 @@ class SOAPConnector(object):
             if item_detail and record_type in self.item_detail_record_types:
                 self.update_line_items(record)
 
+            ## Process join fields.
             for entity_type, value in self.lookup_join_fields.items():
-                if record_type in value.get("created_from_types", []):
+                self.logger.info(
+                    f"Processing {entity_type} join field for {record.internalId}"
+                )
+                if record_type not in value.get("created_from_types", []):
+                    continue
+
+                try:
                     entities = self.get_transactions_by_created_from(
                         entity_type,
                         **{
@@ -2180,6 +2186,10 @@ class SOAPConnector(object):
                     )
                     if entities:
                         self.join_entity(entity_type, record, value, entities)
+                except:
+                    self.logger.exception(
+                        f"Failed {entity_type} join field for {record.internalId}"
+                    )
 
             transactions.append(record)
 
@@ -2337,7 +2347,7 @@ class SOAPConnector(object):
         page_index = int(kwargs.get("page_index", 1))
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
-        
+
         assert cut_date and end_date, "cut_date and end_date are required!!!"
         begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
         end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
