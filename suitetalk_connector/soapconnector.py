@@ -89,8 +89,8 @@ class SOAPConnector(object):
     def update(self, record):
         return self.soap_adaptor.update(record)
 
-    def update_insert(self, record):
-        return self.soap_adaptor.update_insert(record)
+    def upsert(self, record):
+        return self.soap_adaptor.upsert(record)
 
     def get_select_values(self, record_type, field, sublist=None):
         return self.soap_adaptor.get_select_values(record_type, field, sublist=sublist)
@@ -859,6 +859,10 @@ class SOAPConnector(object):
 
         self.logger.info(task)
 
+        if task.get("externalId"):
+            record = self.upsert(Task(**task))
+            return record.internalId
+
         record_lookup = self.lookup_record_fields.get("task")
         record_lookup_value = task.get(record_lookup["field"])
         if record_lookup_value is None:
@@ -1067,18 +1071,24 @@ class SOAPConnector(object):
     ## Insert transaction notes.
     ##
     ## @param notes: The transaction notes.
-    def insert_transaction_notes(self, notes):
+    def insert_transaction_notes(self, notes, internal_id):
+        if notes is None:
+            return
+
         # Import necessary data types
         RecordRef = self.get_data_type("ns0:RecordRef")
         Note = self.get_data_type("ns9:Note")
 
         # Iterate through notes and insert them
         for note in notes:
+            if note["memo"] is None or note["memo"] == "":
+                continue
+
             self.add(
                 Note(
                     title=note["title"],
-                    note=note["note"],
-                    transaction=RecordRef(internalId=note["transaction_internal_id"]),
+                    note=note["memo"],
+                    transaction=RecordRef(internalId=internal_id),
                 )
             )
 
@@ -1243,47 +1253,44 @@ class SOAPConnector(object):
                 if record_type in ["salesOrder"]:
                     transaction.pop("status", None)
 
-                transaction.update({"internalId": record.internalId})
-                self.update(Transaction(**transaction))
-        else:
-            record = self.add(Transaction(**transaction))
-            record = self.get_record(record_type, record.internalId)
+                if transaction.get("externalId"):
+                    self.upsert(Transaction(**transaction))
+                else:
+                    transaction.update({"internalId": record.internalId})
+                    self.update(Transaction(**transaction))
 
-            # Insert CustomerDeposit if record_type == "salesOrder" with the condition.
-            if record_type == "salesOrder" and payment_method in self.setting.get(
-                "CREATE_CUSTOMER_DEPOSIT", []
-            ):
-                customer_deposit = {
-                    "sales_order_internal_id": record.internalId,
-                    "customer_internal_id": customer.internalId,
-                    "tran_date": transaction["tranDate"]
-                    if transaction.get("tranDate")
-                    else current + timedelta(hours=24),
-                    "subsidiary": transaction["subsidiary"],
-                    "payment_method": transaction["paymentMethod"],
-                    "custom_form": "Standard Customer Deposit",
-                    "payment": (
-                        sum([item.amount for item in record.itemList.item])
-                        + record.shippingCost
-                    ),
-                    "status": "Fully Applied",
-                    "cc_approved": True,
-                }
-                self.insert_customer_deposit(**customer_deposit)
+                ## Add notes.
+                self.insert_transaction_notes(notes, record.internalId)
+                return record.tranId
 
-        # Add notes.
-        if notes:
-            notes = [
-                {
-                    "title": note["title"],
-                    "note": note["memo"],
-                    "transaction_internal_id": record.internalId,
-                }
-                for note in notes
-                if note["memo"] is not None and note["memo"] != ""
-            ]
-            self.insert_transaction_notes(notes)
+        ## Insert the transaction if the record is not found.
+        record = self.add(Transaction(**transaction))
+        record = self.get_record(record_type, record.internalId)
 
+        ## Insert CustomerDeposit if record_type == "salesOrder" with the condition.
+        if record_type == "salesOrder" and payment_method in self.setting.get(
+            "CREATE_CUSTOMER_DEPOSIT", []
+        ):
+            customer_deposit = {
+                "sales_order_internal_id": record.internalId,
+                "customer_internal_id": customer.internalId,
+                "tran_date": transaction["tranDate"]
+                if transaction.get("tranDate")
+                else current + timedelta(hours=24),
+                "subsidiary": transaction["subsidiary"],
+                "payment_method": transaction["paymentMethod"],
+                "custom_form": "Standard Customer Deposit",
+                "payment": (
+                    sum([item.amount for item in record.itemList.item])
+                    + record.shippingCost
+                ),
+                "status": "Fully Applied",
+                "cc_approved": True,
+            }
+            self.insert_customer_deposit(**customer_deposit)
+
+        ## Add notes.
+        self.insert_transaction_notes(notes, record.internalId)
         return record.tranId
 
     def get_contact_roles_list(self, contacts, company_internal_id=None):
@@ -1426,6 +1433,11 @@ class SOAPConnector(object):
         self.logger.info(person)
 
         Person = self.get_data_type(self.person_data_type.get(record_type))
+
+        if person.get("externalId"):
+            record = self.upsert(Person(**person))
+            return record.internalId
+
         record_lookup = self.lookup_record_fields.get(record_type)
         if person.get(record_lookup["field"]):
             record = self.get_record_by_variables(
@@ -1550,13 +1562,18 @@ class SOAPConnector(object):
 
         self.logger.info(item)
 
+        Item = self.get_data_type(self.item_data_type.get(record_type))
+
+        if item.get("externalId"):
+            record = self.upsert(Item(**item))
+            return record.internalId
+
         record_lookup = self.lookup_record_fields.get(record_type)
         record = self.get_record_by_variables(
             record_type,
             **{record_lookup["field"]: item.get(record_lookup["field"])},
         )
 
-        Item = self.get_data_type(self.item_data_type.get(record_type))
         if record:
             item = {
                 k: v

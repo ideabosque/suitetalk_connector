@@ -178,7 +178,7 @@ class SOAPAdaptor(object):
         wait=wait_exponential(multiplier=1, max=60),
         stop=stop_after_attempt(5),
     )
-    def update_insert(self, record=None):
+    def upsert(self, record=None):
         soapheaders = {
             "tokenPassport": self.token_passport,
             "applicationInfo": self.application_info,
