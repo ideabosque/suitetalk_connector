@@ -83,6 +83,17 @@ class SOAPConnector(object):
             search_id, page_index, advance=advance
         )
 
+    def async_search(self, search_record, search_preferences=None, advance=False):
+        return self.soap_adaptor.async_search(
+            search_record, search_preferences=search_preferences, advance=advance
+        )
+
+    def check_async_status(self, job_id):
+        return self.soap_adaptor.check_async_status(job_id)
+
+    def get_async_result(self, job_id, page_index):
+        return self.soap_adaptor.get_async_result(job_id, page_index)
+
     def add(self, record):
         return self.soap_adaptor.add(record)
 
@@ -261,6 +272,11 @@ class SOAPConnector(object):
                 searchValue=begin, searchValue2=end, operator="within"
             ),
         )
+
+        if kwargs.get("async", False):
+            return self.async_search(
+                search_record, search_preferences=search_preferences
+            )
 
         return self.search(search_record, search_preferences=search_preferences)
 
@@ -1665,6 +1681,11 @@ class SOAPConnector(object):
                 searchValue=[record_ref], operator="anyOf"
             )
 
+        if kwargs.get("async", False):
+            return self.async_search(
+                search_record, search_preferences=search_preferences
+            )
+
         return self.search(search_record, search_preferences=search_preferences)
 
     def get_inventory_numbers(self, **kwargs):
@@ -1904,7 +1925,17 @@ class SOAPConnector(object):
         return entities
 
     def get_items(self, record_type, records, **kwargs):
+        last_qty_available_change = kwargs.get("last_qty_available_change", True)
         limit = int(kwargs.get("limit", 100))
+
+        if (
+            record_type in ["inventory", "inventoryLot"]
+            and last_qty_available_change
+            and len(records) > 0
+        ):
+            self.logger.info(f"Update last_modified_date to last_qty_available_change for {record_type}.")
+            self.get_last_qty_available_change_for_items(records)
+
         items = []
         records = sorted(records, key=lambda x: x["lastModifiedDate"], reverse=True)
         while len(records) > 0:
@@ -2026,14 +2057,12 @@ class SOAPConnector(object):
                 customField=search_custom_fields
             )
 
-        result = self.search(search_record, search_preferences=search_preferences)
-        if (
-            record_type in ["inventory", "inventoryLot"]
-            and last_qty_available_change
-            and result["total_records"] > 0
-        ):
-            self.get_last_qty_available_change_for_items(result["records"])
-        return result
+        if kwargs.get("async", False):
+            return self.async_search(
+                search_record, search_preferences=search_preferences
+            )
+
+        return self.search(search_record, search_preferences=search_preferences)
 
     def get_transactions_by_created_from(self, record_type, **kwargs):
         SearchPreferences = self.get_data_type("ns4:SearchPreferences")
@@ -2281,6 +2310,11 @@ class SOAPConnector(object):
             record_ref = RecordRef(internalId=record.internalId)
             search_record.subsidiary = SearchMultiSelectField(
                 searchValue=[record_ref], operator="anyOf"
+            )
+
+        if kwargs.get("async", False):
+            return self.async_search(
+                search_record, search_preferences=search_preferences
             )
 
         return self.search(search_record, search_preferences=search_preferences)
