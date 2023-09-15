@@ -178,7 +178,7 @@ class SOAPAdaptor(object):
         wait=wait_exponential(multiplier=1, max=60),
         stop=stop_after_attempt(5),
     )
-    def update_insert(self, record=None):
+    def upsert(self, record=None):
         soapheaders = {
             "tokenPassport": self.token_passport,
             "applicationInfo": self.application_info,
@@ -260,6 +260,73 @@ class SOAPAdaptor(object):
         )
         return self.process_search_result(
             response["body"]["searchResult"], advance=advance
+        )
+
+    @retry(
+        reraise=True,
+        wait=wait_exponential(multiplier=1, max=60),
+        stop=stop_after_attempt(5),
+    )
+    def async_search(self, search_record, search_preferences=None, advance=False):
+        soapheaders = {
+            "tokenPassport": self.token_passport,
+            "applicationInfo": self.application_info,
+        }
+
+        if search_preferences:
+            soapheaders["searchPreferences"] = search_preferences
+
+        response = self.service.asyncSearch(
+            searchRecord=search_record, _soapheaders=soapheaders
+        )
+
+        async_status_result = response["body"]["asyncStatusResult"]
+
+        return {
+            "job_id": async_status_result["jobId"],
+            "status": async_status_result["status"],
+            "percent_completed": async_status_result["percentCompleted"],
+            "est_remaining_duration": async_status_result["estRemainingDuration"],
+        }
+
+    @retry(
+        reraise=True,
+        wait=wait_exponential(multiplier=1, max=60),
+        stop=stop_after_attempt(5),
+    )
+    def check_async_status(self, job_id):
+        soapheaders = {
+            "tokenPassport": self.token_passport,
+            "applicationInfo": self.application_info,
+        }
+
+        response = self.service.checkAsyncStatus(jobId=job_id, _soapheaders=soapheaders)
+        async_status_result = response["body"]["asyncStatusResult"]
+
+        return {
+            "job_id": async_status_result["jobId"],
+            "status": async_status_result["status"],
+            "percent_completed": async_status_result["percentCompleted"],
+            "est_remaining_duration": async_status_result["estRemainingDuration"],
+        }
+
+    @retry(
+        reraise=True,
+        wait=wait_exponential(multiplier=1, max=60),
+        stop=stop_after_attempt(5),
+    )
+    def get_async_result(self, job_id, page_index, advance=False):
+        soapheaders = {
+            "tokenPassport": self.token_passport,
+            "applicationInfo": self.application_info,
+        }
+
+        response = self.service.getAsyncResult(
+            jobId=job_id, pageIndex=page_index, _soapheaders=soapheaders
+        )
+
+        return self.process_search_result(
+            response["body"]["asyncResult"]["searchResult"], advance=advance
         )
 
     @retry(
