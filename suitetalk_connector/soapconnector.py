@@ -4,7 +4,8 @@ from __future__ import print_function
 
 __author__ = "bibow"
 
-import re
+import re, asyncio, time
+import concurrent.futures
 from datetime import datetime, timedelta
 from pytz import timezone
 from .soapadaptor import SOAPAdaptor
@@ -69,6 +70,37 @@ class SOAPConnector(object):
     @soap_adaptor.deleter
     def soap_adaptor(self):
         del self._soap_adaptor
+
+    # Define your asynchronous function here (async_worker)
+    async def async_worker(self, funct, entities, **kwargs):
+        # Your asynchronous code here
+        return funct(entities, **kwargs)
+
+    # Define a wrapper worker for the asynchronous task
+    async def dispatch_async_worker_wrapper(self, funct, entities, **kwargs):
+        result = await self.async_worker(funct, entities, **kwargs)
+        return result
+
+    def dispatch_async_function(self, funct, entities, **kwargs):
+        # Create a list to store the tasks
+        tasks = []
+
+        # Create a multiprocessing Pool
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            # Dispatch asynchronous tasks to different processes for each page index
+            for i in range(0, len(entities), 100):
+                tasks.append(
+                    executor.submit(
+                        asyncio.run,
+                        self.dispatch_async_worker_wrapper(
+                            funct, entities[i : i + 100], **kwargs
+                        ),
+                    )
+                )
+
+        # Gather the tasks' results from the processes
+        gathered_results = [task.result() for task in tasks]
+        return gathered_results
 
     def get_data_type(self, data_type):
         return self.soap_adaptor.get_data_type(data_type)
@@ -1923,6 +1955,18 @@ class SOAPConnector(object):
             entities.append(entity)
         return entities
 
+    def get_inventory_numbers_for_items(self, items, **kwargs):
+        i = 0
+        for item in items:
+            self.logger.info(
+                f"{i}) Processing {kwargs.get('record_type')} for {item['internalId']} at {time.strftime('%X')}."
+            )
+            item["inventoryNumbers"] = self.get_inventory_numbers(
+                **{"item_internal_id": item.internalId}
+            )
+            i += 1
+        return
+
     def get_items(self, record_type, records, **kwargs):
         last_qty_available_change = kwargs.get("last_qty_available_change", True)
         limit = int(kwargs.get("limit", 1000))
@@ -1948,12 +1992,20 @@ class SOAPConnector(object):
                 break
 
             record = records.pop()
-            self.logger.info(f"Processing {record_type} for {record['internalId']}.")
-            if record_type == "inventoryLot":
-                record["inventoryNumbers"] = self.get_inventory_numbers(
-                    **{"item_internal_id": record.internalId}
-                )
+            # self.logger.info(f"Processing {record_type} for {record['internalId']}.")
+            # if record_type == "inventoryLot":
+            #     record["inventoryNumbers"] = self.get_inventory_numbers(
+            #         **{"item_internal_id": record.internalId}
+            #     )
             items.append(record)
+
+        if record_type == "inventoryLot":
+            self.dispatch_async_function(
+                self.get_inventory_numbers_for_items,
+                items,
+                **{"record_type": record_type},
+            )
+
         return items
 
     def get_item_result(self, record_type, **kwargs):
@@ -2185,11 +2237,62 @@ class SOAPConnector(object):
                     internal_id
                 ]["pricingMatrix"]
 
+    def get_additional_data_for_transactions(self, transactions, **kwargs):
+        record_type = kwargs.get("record_type")
+        inventory_detail = kwargs.get("inventory_detail", False)
+        item_detail = kwargs.get("item_detail", False)
+        i = 0
+        for transaction in transactions:
+            self.logger.info(
+                f"{i}) Processing {record_type} for {transaction['internalId']} at {time.strftime('%X')}."
+            )
+            if inventory_detail and record_type in self.inventory_detail_record_types:
+                self.logger.info(
+                    f"{i}) Processing inventory_detail fetch for {transaction['internalId']} at {time.strftime('%X')}."
+                )
+                if record_type in ["inventoryTransfer", "inventoryAdjustment"]:
+                    transaction.inventoryList = self.get_record(
+                        record_type, transaction.internalId
+                    ).inventoryList
+                else:
+                    transaction.itemList = self.get_record(
+                        record_type, transaction.internalId
+                    ).itemList
+
+            if item_detail and record_type in self.item_detail_record_types:
+                self.logger.info(
+                    f"{i}) Processing item_detail fetch for {transaction['internalId']} at {time.strftime('%X')}."
+                )
+                self.update_line_items(transaction)
+
+            ## Process join fields.
+            for entity_type, value in self.lookup_join_fields.items():
+                self.logger.info(
+                    f"{i}) Processing {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
+                )
+                if record_type not in value.get("created_from_types", []):
+                    continue
+
+                try:
+                    entities = self.get_transactions_by_created_from(
+                        entity_type,
+                        **{
+                            "created_from_internal_id": transaction.internalId,
+                            "created_from_type": record_type,
+                        },
+                    )
+                    if entities:
+                        self.join_entity(entity_type, transaction, value, entities)
+                except:
+                    self.logger.exception(
+                        f"{i}) Failed {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
+                    )
+            i += 1
+
+        return
+
     def get_transactions(self, record_type, records, **kwargs):
         limit = int(kwargs.get("limit", 1000))
-        item_detail = kwargs.get("item_detail", False)
-        inventory_detail = kwargs.get("inventory_detail", False)
-
         transactions = []
         records = sorted(records, key=lambda x: x["lastModifiedDate"], reverse=True)
         while len(records):
@@ -2201,43 +2304,53 @@ class SOAPConnector(object):
                 break
             record = records.pop()
 
-            if inventory_detail and record_type in self.inventory_detail_record_types:
-                if record_type in ["inventoryTransfer", "inventoryAdjustment"]:
-                    record.inventoryList = self.get_record(
-                        record_type, record.internalId
-                    ).inventoryList
-                else:
-                    record.itemList = self.get_record(
-                        record_type, record.internalId
-                    ).itemList
+            # if inventory_detail and record_type in self.inventory_detail_record_types:
+            #     if record_type in ["inventoryTransfer", "inventoryAdjustment"]:
+            #         record.inventoryList = self.get_record(
+            #             record_type, record.internalId
+            #         ).inventoryList
+            #     else:
+            #         record.itemList = self.get_record(
+            #             record_type, record.internalId
+            #         ).itemList
 
-            if item_detail and record_type in self.item_detail_record_types:
-                self.update_line_items(record)
+            # if item_detail and record_type in self.item_detail_record_types:
+            #     self.update_line_items(record)
 
-            ## Process join fields.
-            for entity_type, value in self.lookup_join_fields.items():
-                self.logger.info(
-                    f"Processing {entity_type} join field for {record.internalId}"
-                )
-                if record_type not in value.get("created_from_types", []):
-                    continue
+            # ## Process join fields.
+            # for entity_type, value in self.lookup_join_fields.items():
+            #     self.logger.info(
+            #         f"Processing {entity_type} join field for {record.internalId}"
+            #     )
+            #     if record_type not in value.get("created_from_types", []):
+            #         continue
 
-                try:
-                    entities = self.get_transactions_by_created_from(
-                        entity_type,
-                        **{
-                            "created_from_internal_id": record.internalId,
-                            "created_from_type": record_type,
-                        },
-                    )
-                    if entities:
-                        self.join_entity(entity_type, record, value, entities)
-                except:
-                    self.logger.exception(
-                        f"Failed {entity_type} join field for {record.internalId}"
-                    )
+            #     try:
+            #         entities = self.get_transactions_by_created_from(
+            #             entity_type,
+            #             **{
+            #                 "created_from_internal_id": record.internalId,
+            #                 "created_from_type": record_type,
+            #             },
+            #         )
+            #         if entities:
+            #             self.join_entity(entity_type, record, value, entities)
+            #     except:
+            #         self.logger.exception(
+            #             f"Failed {entity_type} join field for {record.internalId}"
+            #         )
 
             transactions.append(record)
+
+        self.dispatch_async_function(
+            self.get_additional_data_for_transactions,
+            transactions,
+            **{
+                "record_type": record_type,
+                "item_detail": kwargs.get("item_detail", False),
+                "inventory_detail": kwargs.get("inventory_detail", False),
+            },
+        )
 
         return transactions
 
