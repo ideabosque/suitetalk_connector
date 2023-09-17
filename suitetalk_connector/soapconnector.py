@@ -230,7 +230,7 @@ class SOAPConnector(object):
         return None
 
     def get_custom_records(self, _records, **kwargs):
-        limit = int(kwargs.get("limit", 100))
+        limit = int(kwargs.get("limit", 1000))
 
         records = []
         _records = sorted(_records, key=lambda x: x["lastModified"], reverse=True)
@@ -1610,7 +1610,7 @@ class SOAPConnector(object):
         return record.internalId
 
     def get_persons(self, record_type, records, **kwargs):
-        limit = int(kwargs.get("limit", 100))
+        limit = int(kwargs.get("limit", 1000))
         persons = []
         if records:
             for record in sorted(
@@ -1639,7 +1639,6 @@ class SOAPConnector(object):
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
-        limit = int(kwargs.get("limit", 100))
         subsidiary = kwargs.get("subsidiary")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
@@ -1649,7 +1648,7 @@ class SOAPConnector(object):
                 internalId=SearchMultiSelectField(
                     searchValue=[
                         RecordRef(internalId=internal_id)
-                        for internal_id in kwargs.get("internal_ids")[:limit]
+                        for internal_id in kwargs.get("internal_ids")[:1000]
                     ],
                     operator="anyOf",
                 ),
@@ -1926,14 +1925,16 @@ class SOAPConnector(object):
 
     def get_items(self, record_type, records, **kwargs):
         last_qty_available_change = kwargs.get("last_qty_available_change", True)
-        limit = int(kwargs.get("limit", 100))
+        limit = int(kwargs.get("limit", 1000))
 
         if (
             record_type in ["inventory", "inventoryLot"]
             and last_qty_available_change
             and len(records) > 0
         ):
-            self.logger.info(f"Update last_modified_date to last_qty_available_change for {record_type}.")
+            self.logger.info(
+                f"Update last_modified_date to last_qty_available_change for {record_type}."
+            )
             self.get_last_qty_available_change_for_items(records)
 
         items = []
@@ -1975,7 +1976,6 @@ class SOAPConnector(object):
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
-        limit = int(kwargs.get("limit", 100))
         item_types = kwargs.get(
             "item_types",
             [
@@ -2001,7 +2001,7 @@ class SOAPConnector(object):
                 internalId=SearchMultiSelectField(
                     searchValue=[
                         RecordRef(internalId=internal_id)
-                        for internal_id in kwargs.get("internal_ids")[:limit]
+                        for internal_id in kwargs.get("internal_ids")[:1000]
                     ],
                     operator="anyOf",
                 ),
@@ -2186,7 +2186,7 @@ class SOAPConnector(object):
                 ]["pricingMatrix"]
 
     def get_transactions(self, record_type, records, **kwargs):
-        limit = int(kwargs.get("limit", 100))
+        limit = int(kwargs.get("limit", 1000))
         item_detail = kwargs.get("item_detail", False)
         inventory_detail = kwargs.get("inventory_detail", False)
 
@@ -2258,7 +2258,6 @@ class SOAPConnector(object):
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
-        limit = int(kwargs.get("limit", 100))
         vendor_id = kwargs.get("vendor_id")
         subsidiary = kwargs.get("subsidiary")
 
@@ -2271,7 +2270,7 @@ class SOAPConnector(object):
                 internalId=SearchMultiSelectField(
                     searchValue=[
                         RecordRef(internalId=internal_id)
-                        for internal_id in kwargs.get("internal_ids")[:limit]
+                        for internal_id in kwargs.get("internal_ids")[:1000]
                     ],
                     operator="anyOf",
                 ),
