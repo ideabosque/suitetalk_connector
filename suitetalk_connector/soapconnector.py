@@ -1962,15 +1962,13 @@ class SOAPConnector(object):
         return entities
 
     def get_inventory_numbers_for_items(self, items, **kwargs):
-        i = 0
-        for item in items:
+        for idx, item in enumerate(items):
             self.logger.info(
-                f"{i}) Processing {kwargs.get('record_type')} to fetch inventory_numbers for {item['internalId']} at {time.strftime('%X')}."
+                f"{idx}) Processing {kwargs.get('record_type')} to fetch inventory_numbers for {item['internalId']} at {time.strftime('%X')}."
             )
             item["inventoryNumbers"] = self.get_inventory_numbers(
                 **{"item_internal_id": item.internalId}
             )
-            i += 1
         return
 
     def get_items(self, record_type, records, **kwargs):
@@ -2243,14 +2241,14 @@ class SOAPConnector(object):
         record_type = kwargs.get("record_type")
         inventory_detail = kwargs.get("inventory_detail", False)
         item_detail = kwargs.get("item_detail", False)
-        i = 0
-        for transaction in transactions:
+
+        for idx, transaction in enumerate(transactions):
             self.logger.info(
-                f"{i}) Processing {record_type} for {transaction['internalId']} at {time.strftime('%X')}."
+                f"{idx}) Processing {record_type} for {transaction['internalId']} at {time.strftime('%X')}."
             )
             if inventory_detail and record_type in self.inventory_detail_record_types:
                 self.logger.info(
-                    f"{i}) Processing {record_type} to fetch inventory_detail for {transaction['internalId']} at {time.strftime('%X')}."
+                    f"{idx}) Processing {record_type} to fetch inventory_detail for {transaction['internalId']} at {time.strftime('%X')}."
                 )
                 if record_type in ["inventoryTransfer", "inventoryAdjustment"]:
                     transaction.inventoryList = self.get_record(
@@ -2263,14 +2261,14 @@ class SOAPConnector(object):
 
             if item_detail and record_type in self.item_detail_record_types:
                 self.logger.info(
-                    f"{i}) Processing {record_type} to fetch item_detail for {transaction['internalId']} at {time.strftime('%X')}."
+                    f"{idx}) Processing {record_type} to fetch item_detail for {transaction['internalId']} at {time.strftime('%X')}."
                 )
                 self.update_line_items(transaction)
 
             ## Process join fields.
             for entity_type, value in self.lookup_join_fields.items():
                 self.logger.info(
-                    f"{i}) Processing {record_type} to fetch {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
+                    f"{idx}) Processing {record_type} to fetch {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
                 )
                 if record_type not in value.get("created_from_types", []):
                     continue
@@ -2287,9 +2285,8 @@ class SOAPConnector(object):
                         self.join_entity(entity_type, transaction, value, entities)
                 except:
                     self.logger.exception(
-                        f"{i}) Failed {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
+                        f"{idx}) Failed {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
                     )
-            i += 1
 
         return
 
