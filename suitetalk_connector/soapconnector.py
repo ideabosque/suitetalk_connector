@@ -4,7 +4,7 @@ from __future__ import print_function
 
 __author__ = "bibow"
 
-import re, asyncio, time
+import re, asyncio, time, math
 import concurrent.futures
 from datetime import datetime, timedelta
 from pytz import timezone
@@ -88,12 +88,19 @@ class SOAPConnector(object):
         # Create a multiprocessing Pool
         with concurrent.futures.ThreadPoolExecutor() as executor:
             # Dispatch asynchronous tasks to different processes for each page index
-            for i in range(0, len(entities), 100):
+            for i in range(0, 10):
+                start_idx = i * math.floor(len(entities) / 10)
+                end_idx = start_idx + math.floor(len(entities) / 10)
+                if i == 9:
+                    end_idx = end_idx + (len(entities) % 10)
+
                 tasks.append(
                     executor.submit(
                         asyncio.run,
                         self.dispatch_async_worker_wrapper(
-                            funct, entities[i : i + 100], **kwargs
+                            funct,
+                            entities[start_idx:end_idx],
+                            **kwargs,
                         ),
                     )
                 )
