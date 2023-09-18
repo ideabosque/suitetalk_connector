@@ -1975,6 +1975,7 @@ class SOAPConnector(object):
         last_qty_available_change = kwargs.get("last_qty_available_change", True)
         limit = int(kwargs.get("limit", 1000))
 
+        ## Update last_modified_date to last_qty_available_change.
         if (
             record_type in ["inventory", "inventoryLot"]
             and last_qty_available_change
@@ -1999,6 +2000,7 @@ class SOAPConnector(object):
             record = records.pop()
             items.append(record)
 
+        ## Fetch inventory_numbers.
         if record_type == "inventoryLot":
             self.dispatch_async_function(
                 self.get_inventory_numbers_for_items,
@@ -2304,6 +2306,7 @@ class SOAPConnector(object):
             record = records.pop()
             transactions.append(record)
 
+        ## Fetch additional data for transactions.
         self.dispatch_async_function(
             self.get_additional_data_for_transactions,
             transactions,
