@@ -4,7 +4,8 @@ from __future__ import print_function
 
 __author__ = "bibow"
 
-import re
+import re, asyncio, time
+import concurrent.futures
 from datetime import datetime, timedelta
 from pytz import timezone
 from .soapadaptor import SOAPAdaptor
@@ -69,6 +70,37 @@ class SOAPConnector(object):
     @soap_adaptor.deleter
     def soap_adaptor(self):
         del self._soap_adaptor
+
+    # Define your asynchronous function here (async_worker)
+    async def async_worker(self, funct, entities, **kwargs):
+        # Your asynchronous code here
+        return funct(entities, **kwargs)
+
+    # Define a wrapper worker for the asynchronous task
+    async def dispatch_async_worker_wrapper(self, funct, entities, **kwargs):
+        result = await self.async_worker(funct, entities, **kwargs)
+        return result
+
+    def dispatch_async_function(self, funct, entities, **kwargs):
+        # Create a list to store the tasks
+        tasks = []
+
+        # Create a multiprocessing Pool
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            # Dispatch asynchronous tasks to different processes for each page index
+            for i in range(0, len(entities), 100):
+                tasks.append(
+                    executor.submit(
+                        asyncio.run,
+                        self.dispatch_async_worker_wrapper(
+                            funct, entities[i : i + 100], **kwargs
+                        ),
+                    )
+                )
+
+        # Gather the tasks' results from the processes
+        gathered_results = [task.result() for task in tasks]
+        return gathered_results
 
     def get_data_type(self, data_type):
         return self.soap_adaptor.get_data_type(data_type)
@@ -230,7 +262,7 @@ class SOAPConnector(object):
         return None
 
     def get_custom_records(self, _records, **kwargs):
-        limit = int(kwargs.get("limit", 100))
+        limit = int(kwargs.get("limit", 1000))
 
         records = []
         _records = sorted(_records, key=lambda x: x["lastModified"], reverse=True)
@@ -1610,7 +1642,7 @@ class SOAPConnector(object):
         return record.internalId
 
     def get_persons(self, record_type, records, **kwargs):
-        limit = int(kwargs.get("limit", 100))
+        limit = int(kwargs.get("limit", 1000))
         persons = []
         if records:
             for record in sorted(
@@ -1639,7 +1671,6 @@ class SOAPConnector(object):
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
-        limit = int(kwargs.get("limit", 100))
         subsidiary = kwargs.get("subsidiary")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
@@ -1649,7 +1680,7 @@ class SOAPConnector(object):
                 internalId=SearchMultiSelectField(
                     searchValue=[
                         RecordRef(internalId=internal_id)
-                        for internal_id in kwargs.get("internal_ids")[:limit]
+                        for internal_id in kwargs.get("internal_ids")[:1000]
                     ],
                     operator="anyOf",
                 ),
@@ -1726,7 +1757,7 @@ class SOAPConnector(object):
             )
             return None
 
-    def get_last_qty_available_change_for_items(self, records):
+    def get_last_qty_available_change_for_items(self, records, **kwargs):
         RecordRef = self.get_data_type("ns0:RecordRef")
         ItemSearchAdvanced = self.get_data_type("ns17:ItemSearchAdvanced")
         ItemSearchRow = self.get_data_type("ns17:ItemSearchRow")
@@ -1762,7 +1793,12 @@ class SOAPConnector(object):
         assert result["total_pages"] <= 1, "More than one page!!!"
         if result["total_records"] > 0:
             rows = result["records"]
+
+        i = 0
         for record in records:
+            self.logger.info(
+                f"{i}) Processing {kwargs.get('record_type')} to update last_modified_date to last_qty_available_change for {record.internalId} at {time.strftime('%X')}."
+            )
             _rows = list(
                 filter(
                     lambda row: (row.basic.itemId[0].searchValue == record.itemId), rows
@@ -1772,6 +1808,7 @@ class SOAPConnector(object):
                 record.lastModifiedDate = (
                     _rows[0].basic.lastQuantityAvailableChange[0].searchValue
                 )
+            i += 1
 
     def get_last_qty_available_change(self, item_id):
         ItemSearchAdvanced = self.get_data_type("ns17:ItemSearchAdvanced")
@@ -1924,17 +1961,31 @@ class SOAPConnector(object):
             entities.append(entity)
         return entities
 
+    def get_inventory_numbers_for_items(self, items, **kwargs):
+        for idx, item in enumerate(items):
+            self.logger.info(
+                f"{idx}) Processing {kwargs.get('record_type')} to fetch inventory_numbers for {item['internalId']} at {time.strftime('%X')}."
+            )
+            item["inventoryNumbers"] = self.get_inventory_numbers(
+                **{"item_internal_id": item.internalId}
+            )
+        return
+
     def get_items(self, record_type, records, **kwargs):
         last_qty_available_change = kwargs.get("last_qty_available_change", True)
-        limit = int(kwargs.get("limit", 100))
+        limit = int(kwargs.get("limit", 1000))
 
+        ## Update last_modified_date to last_qty_available_change.
         if (
             record_type in ["inventory", "inventoryLot"]
             and last_qty_available_change
             and len(records) > 0
         ):
-            self.logger.info(f"Update last_modified_date to last_qty_available_change for {record_type}.")
-            self.get_last_qty_available_change_for_items(records)
+            self.dispatch_async_function(
+                self.get_last_qty_available_change_for_items,
+                records,
+                **{"record_type": record_type},
+            )
 
         items = []
         records = sorted(records, key=lambda x: x["lastModifiedDate"], reverse=True)
@@ -1947,12 +1998,16 @@ class SOAPConnector(object):
                 break
 
             record = records.pop()
-            self.logger.info(f"Processing {record_type} for {record['internalId']}.")
-            if record_type == "inventoryLot":
-                record["inventoryNumbers"] = self.get_inventory_numbers(
-                    **{"item_internal_id": record.internalId}
-                )
             items.append(record)
+
+        ## Fetch inventory_numbers.
+        if record_type == "inventoryLot":
+            self.dispatch_async_function(
+                self.get_inventory_numbers_for_items,
+                items,
+                **{"record_type": record_type},
+            )
+
         return items
 
     def get_item_result(self, record_type, **kwargs):
@@ -1975,7 +2030,6 @@ class SOAPConnector(object):
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
-        limit = int(kwargs.get("limit", 100))
         item_types = kwargs.get(
             "item_types",
             [
@@ -2001,7 +2055,7 @@ class SOAPConnector(object):
                 internalId=SearchMultiSelectField(
                     searchValue=[
                         RecordRef(internalId=internal_id)
-                        for internal_id in kwargs.get("internal_ids")[:limit]
+                        for internal_id in kwargs.get("internal_ids")[:1000]
                     ],
                     operator="anyOf",
                 ),
@@ -2185,11 +2239,61 @@ class SOAPConnector(object):
                     internal_id
                 ]["pricingMatrix"]
 
-    def get_transactions(self, record_type, records, **kwargs):
-        limit = int(kwargs.get("limit", 100))
-        item_detail = kwargs.get("item_detail", False)
+    def get_additional_data_for_transactions(self, transactions, **kwargs):
+        record_type = kwargs.get("record_type")
         inventory_detail = kwargs.get("inventory_detail", False)
+        item_detail = kwargs.get("item_detail", False)
 
+        for idx, transaction in enumerate(transactions):
+            self.logger.info(
+                f"{idx}) Processing {record_type} for {transaction['internalId']} at {time.strftime('%X')}."
+            )
+            if inventory_detail and record_type in self.inventory_detail_record_types:
+                self.logger.info(
+                    f"{idx}) Processing {record_type} to fetch inventory_detail for {transaction['internalId']} at {time.strftime('%X')}."
+                )
+                if record_type in ["inventoryTransfer", "inventoryAdjustment"]:
+                    transaction.inventoryList = self.get_record(
+                        record_type, transaction.internalId
+                    ).inventoryList
+                else:
+                    transaction.itemList = self.get_record(
+                        record_type, transaction.internalId
+                    ).itemList
+
+            if item_detail and record_type in self.item_detail_record_types:
+                self.logger.info(
+                    f"{idx}) Processing {record_type} to fetch item_detail for {transaction['internalId']} at {time.strftime('%X')}."
+                )
+                self.update_line_items(transaction)
+
+            ## Process join fields.
+            for entity_type, value in self.lookup_join_fields.items():
+                self.logger.info(
+                    f"{idx}) Processing {record_type} to fetch {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
+                )
+                if record_type not in value.get("created_from_types", []):
+                    continue
+
+                try:
+                    entities = self.get_transactions_by_created_from(
+                        entity_type,
+                        **{
+                            "created_from_internal_id": transaction.internalId,
+                            "created_from_type": record_type,
+                        },
+                    )
+                    if entities:
+                        self.join_entity(entity_type, transaction, value, entities)
+                except:
+                    self.logger.exception(
+                        f"{idx}) Failed {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
+                    )
+
+        return
+
+    def get_transactions(self, record_type, records, **kwargs):
+        limit = int(kwargs.get("limit", 1000))
         transactions = []
         records = sorted(records, key=lambda x: x["lastModifiedDate"], reverse=True)
         while len(records):
@@ -2200,44 +2304,18 @@ class SOAPConnector(object):
             ):
                 break
             record = records.pop()
-
-            if inventory_detail and record_type in self.inventory_detail_record_types:
-                if record_type in ["inventoryTransfer", "inventoryAdjustment"]:
-                    record.inventoryList = self.get_record(
-                        record_type, record.internalId
-                    ).inventoryList
-                else:
-                    record.itemList = self.get_record(
-                        record_type, record.internalId
-                    ).itemList
-
-            if item_detail and record_type in self.item_detail_record_types:
-                self.update_line_items(record)
-
-            ## Process join fields.
-            for entity_type, value in self.lookup_join_fields.items():
-                self.logger.info(
-                    f"Processing {entity_type} join field for {record.internalId}"
-                )
-                if record_type not in value.get("created_from_types", []):
-                    continue
-
-                try:
-                    entities = self.get_transactions_by_created_from(
-                        entity_type,
-                        **{
-                            "created_from_internal_id": record.internalId,
-                            "created_from_type": record_type,
-                        },
-                    )
-                    if entities:
-                        self.join_entity(entity_type, record, value, entities)
-                except:
-                    self.logger.exception(
-                        f"Failed {entity_type} join field for {record.internalId}"
-                    )
-
             transactions.append(record)
+
+        ## Fetch additional data for transactions.
+        self.dispatch_async_function(
+            self.get_additional_data_for_transactions,
+            transactions,
+            **{
+                "record_type": record_type,
+                "item_detail": kwargs.get("item_detail", False),
+                "inventory_detail": kwargs.get("inventory_detail", False),
+            },
+        )
 
         return transactions
 
@@ -2258,7 +2336,6 @@ class SOAPConnector(object):
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
-        limit = int(kwargs.get("limit", 100))
         vendor_id = kwargs.get("vendor_id")
         subsidiary = kwargs.get("subsidiary")
 
@@ -2271,7 +2348,7 @@ class SOAPConnector(object):
                 internalId=SearchMultiSelectField(
                     searchValue=[
                         RecordRef(internalId=internal_id)
-                        for internal_id in kwargs.get("internal_ids")[:limit]
+                        for internal_id in kwargs.get("internal_ids")[:1000]
                     ],
                     operator="anyOf",
                 ),
