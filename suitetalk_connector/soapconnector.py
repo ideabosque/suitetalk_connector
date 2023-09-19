@@ -1861,10 +1861,9 @@ class SOAPConnector(object):
         if result["total_records"] > 0:
             rows = result["records"]
 
-        i = 0
-        for record in records:
+        for idx, record in enumerate(records):
             self.logger.info(
-                f"{i}) Processing {kwargs.get('record_type')} to update last_modified_date to last_qty_available_change for {record.internalId} at {time.strftime('%X')}."
+                f"{idx}) Processing {kwargs.get('record_type')} to update last_modified_date to last_qty_available_change for {record.internalId} at {time.strftime('%X')}."
             )
             _rows = list(
                 filter(
@@ -1875,7 +1874,6 @@ class SOAPConnector(object):
                 record.lastModifiedDate = (
                     _rows[0].basic.lastQuantityAvailableChange[0].searchValue
                 )
-            i += 1
 
     def get_last_qty_available_change(self, item_id):
         ItemSearchAdvanced = self.get_data_type("ns17:ItemSearchAdvanced")
