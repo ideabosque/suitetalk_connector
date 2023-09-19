@@ -1675,18 +1675,50 @@ class SOAPConnector(object):
         record = self.add(Item(**item))
         return record.internalId
 
+    def get_sales_rep_for_persons(self, persons, **kwargs):
+        for idx, person in enumerate(persons):
+            self.logger.info(
+                f"{idx}) Processing {kwargs.get('record_type')} to fetch sales_rep for {person['internalId']} at {time.strftime('%X')}."
+            )
+            if person.salesRep:
+                person.salesRep = self.get_record(
+                    "employee", person.salesRep.internalId
+                )
+        return
+
     def get_persons(self, record_type, records, **kwargs):
         limit = int(kwargs.get("limit", 1000))
+
         persons = []
-        if records:
-            for record in sorted(
-                records, key=lambda x: x["lastModifiedDate"], reverse=False
-            )[:limit]:
-                if record_type == "customer" and record.salesRep:
-                    record.salesRep = self.get_record(
-                        "employee", record.salesRep.internalId
-                    )
-                persons.append(record)
+        records = sorted(records, key=lambda x: x["lastModifiedDate"], reverse=True)
+        while len(records):
+            if (
+                len(persons) >= limit
+                and persons[len(persons) - 1]["lastModifiedDate"]
+                != records[len(records) - 1]["lastModifiedDate"]
+            ):
+                break
+            record = records.pop()
+            persons.append(record)
+
+        ## Fetch sales_rep for persons.
+        if record_type == "customer":
+            self.dispatch_async_function(
+                self.get_sales_rep_for_persons,
+                persons,
+                **{"record_type": record_type},
+            )
+
+        # persons = []
+        # if records:
+        #     for record in sorted(
+        #         records, key=lambda x: x["lastModifiedDate"], reverse=False
+        #     )[:limit]:
+        #         if record_type == "customer" and record.salesRep:
+        #             record.salesRep = self.get_record(
+        #                 "employee", record.salesRep.internalId
+        #             )
+        #         persons.append(record)
         return persons
 
     @search_result_decorator()
@@ -2035,7 +2067,7 @@ class SOAPConnector(object):
             record = records.pop()
             items.append(record)
 
-        ## Fetch inventory_numbers.
+        ## Fetch inventory_numbers for items.
         if record_type == "inventoryLot":
             self.dispatch_async_function(
                 self.get_inventory_numbers_for_items,
