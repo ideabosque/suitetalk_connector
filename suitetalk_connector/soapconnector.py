@@ -71,6 +71,27 @@ class SOAPConnector(object):
     def soap_adaptor(self):
         del self._soap_adaptor
 
+    def search_result_decorator():
+        def decorator(func):
+            def wrapper(self, *args, **kwargs):
+                result = func(self, *args, **kwargs)
+
+                if result.get("job_id"):
+                    self.logger.info(
+                        f"Job ID {result['job_id']}: status ({result['status']}) at percent completed ({result['percent_completed']}) with estimated time to complete ({result['est_remaining_duration']})."
+                    )
+                    return result
+
+                self.logger.info(
+                    f"Total_records/Total_pages {result['total_records']}/{result['total_pages']}: {len(result['records'])} records at page {result['page_index']}."
+                )
+
+                return result
+
+            return wrapper
+
+        return decorator
+
     # Define your asynchronous function here (async_worker)
     async def async_worker(self, funct, entities, **kwargs):
         # Your asynchronous code here
@@ -128,8 +149,13 @@ class SOAPConnector(object):
         )
 
     def check_async_status(self, job_id):
-        return self.soap_adaptor.check_async_status(job_id)
+        result = self.soap_adaptor.check_async_status(job_id)
+        self.logger.info(
+            f"Job ID {result['job_id']}: status ({result['status']}) at percent completed ({result['percent_completed']}) with estimated time to complete ({result['est_remaining_duration']})."
+        )
+        return result
 
+    @search_result_decorator()
     def get_async_result(self, job_id, page_index):
         return self.soap_adaptor.get_async_result(job_id, page_index)
 
@@ -284,6 +310,7 @@ class SOAPConnector(object):
             records.append(_record)
         return records
 
+    @search_result_decorator()
     def get_custom_record_result(self, rec_type_id, **kwargs):
         if kwargs.get("search_id") and kwargs.get("page_index"):
             return self.search_more_with_id(
@@ -1662,6 +1689,7 @@ class SOAPConnector(object):
                 persons.append(record)
         return persons
 
+    @search_result_decorator()
     def get_person_result(self, record_type, **kwargs):
         if kwargs.get("search_id") and kwargs.get("page_index"):
             return self.search_more_with_id(
@@ -2017,6 +2045,7 @@ class SOAPConnector(object):
 
         return items
 
+    @search_result_decorator()
     def get_item_result(self, record_type, **kwargs):
         if kwargs.get("search_id") and kwargs.get("page_index"):
             return self.search_more_with_id(
@@ -2326,6 +2355,7 @@ class SOAPConnector(object):
 
         return transactions
 
+    @search_result_decorator()
     def get_transaction_result(self, record_type, **kwargs):
         if kwargs.get("search_id") and kwargs.get("page_index"):
             return self.search_more_with_id(
