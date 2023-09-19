@@ -4,7 +4,7 @@ from __future__ import print_function
 
 __author__ = "bibow"
 
-import re, asyncio, time, math
+import re, asyncio, time
 import concurrent.futures
 from datetime import datetime, timedelta
 from pytz import timezone
@@ -106,15 +106,22 @@ class SOAPConnector(object):
         # Create a list to store the tasks
         tasks = []
 
+        num_segments = 10
         # Create a multiprocessing Pool
         with concurrent.futures.ThreadPoolExecutor() as executor:
             # Dispatch asynchronous tasks to different processes for each page index
-            for i in range(0, 10):
-                start_idx = i * math.floor(len(entities) / 10)
-                end_idx = start_idx + math.floor(len(entities) / 10)
-                if i == 9:
-                    end_idx = end_idx + (len(entities) % 10)
+            for i in range(num_segments):
+                start_idx = i * (len(entities) // num_segments)
+                end_idx = (i + 1) * (len(entities) // num_segments)
 
+                # Distribute any remaining items to the last segment
+                if i == num_segments - 1:
+                    end_idx += len(entities) % num_segments
+
+                if end_idx == 0:
+                    continue
+
+                # Dispatch the asynchronous task to the process pool
                 tasks.append(
                     executor.submit(
                         asyncio.run,
@@ -126,8 +133,19 @@ class SOAPConnector(object):
                     )
                 )
 
+        # Track progress and calculate the percentage
+        total_tasks = len(tasks)
+        completed_tasks = 0
+
         # Gather the tasks' results from the processes
-        gathered_results = [task.result() for task in tasks]
+        gathered_results = []
+        for task in concurrent.futures.as_completed(tasks):
+            result = task.result()
+            gathered_results.append(result)
+            completed_tasks += 1
+            progress_percent = (completed_tasks / total_tasks) * 100
+            self.logger.info(f"Progress ({funct.__name__}): {progress_percent:.2f}%")
+
         return gathered_results
 
     def get_data_type(self, data_type):
@@ -1677,7 +1695,7 @@ class SOAPConnector(object):
 
     def get_sales_rep_for_persons(self, persons, **kwargs):
         for idx, person in enumerate(persons):
-            self.logger.info(
+            self.logger.debug(
                 f"{idx}) Processing {kwargs.get('record_type')} to fetch sales_rep for {person['internalId']} at {time.strftime('%X')}."
             )
             if person.salesRep:
@@ -1709,16 +1727,6 @@ class SOAPConnector(object):
                 **{"record_type": record_type},
             )
 
-        # persons = []
-        # if records:
-        #     for record in sorted(
-        #         records, key=lambda x: x["lastModifiedDate"], reverse=False
-        #     )[:limit]:
-        #         if record_type == "customer" and record.salesRep:
-        #             record.salesRep = self.get_record(
-        #                 "employee", record.salesRep.internalId
-        #             )
-        #         persons.append(record)
         return persons
 
     @search_result_decorator()
@@ -1862,7 +1870,7 @@ class SOAPConnector(object):
             rows = result["records"]
 
         for idx, record in enumerate(records):
-            self.logger.info(
+            self.logger.debug(
                 f"{idx}) Processing {kwargs.get('record_type')} to update last_modified_date to last_qty_available_change for {record.internalId} at {time.strftime('%X')}."
             )
             _rows = list(
@@ -2028,7 +2036,7 @@ class SOAPConnector(object):
 
     def get_inventory_numbers_for_items(self, items, **kwargs):
         for idx, item in enumerate(items):
-            self.logger.info(
+            self.logger.debug(
                 f"{idx}) Processing {kwargs.get('record_type')} to fetch inventory_numbers for {item['internalId']} at {time.strftime('%X')}."
             )
             item["inventoryNumbers"] = self.get_inventory_numbers(
@@ -2311,11 +2319,11 @@ class SOAPConnector(object):
         item_detail = kwargs.get("item_detail", False)
 
         for idx, transaction in enumerate(transactions):
-            self.logger.info(
+            self.logger.debug(
                 f"{idx}) Processing {record_type} for {transaction['internalId']} at {time.strftime('%X')}."
             )
             if inventory_detail and record_type in self.inventory_detail_record_types:
-                self.logger.info(
+                self.logger.debug(
                     f"{idx}) Processing {record_type} to fetch inventory_detail for {transaction['internalId']} at {time.strftime('%X')}."
                 )
                 if record_type in ["inventoryTransfer", "inventoryAdjustment"]:
@@ -2328,14 +2336,14 @@ class SOAPConnector(object):
                     ).itemList
 
             if item_detail and record_type in self.item_detail_record_types:
-                self.logger.info(
+                self.logger.debug(
                     f"{idx}) Processing {record_type} to fetch item_detail for {transaction['internalId']} at {time.strftime('%X')}."
                 )
                 self.update_line_items(transaction)
 
             ## Process join fields.
             for entity_type, value in self.lookup_join_fields.items():
-                self.logger.info(
+                self.logger.debug(
                     f"{idx}) Processing {record_type} to fetch {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
                 )
                 if record_type not in value.get("created_from_types", []):
