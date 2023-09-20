@@ -98,11 +98,11 @@ class SOAPConnector(object):
         return funct(entities, **kwargs)
 
     # Define a wrapper worker for the asynchronous task
-    async def dispatch_async_worker_wrapper(self, funct, entities, **kwargs):
+    async def async_worker_wrapper(self, funct, entities, **kwargs):
         result = await self.async_worker(funct, entities, **kwargs)
         return result
 
-    def dispatch_async_function(self, funct, entities, **kwargs):
+    def dispatch_async_worker(self, funct, entities, **kwargs):
         # Create a list to store the tasks
         tasks = []
 
@@ -125,7 +125,7 @@ class SOAPConnector(object):
                 tasks.append(
                     executor.submit(
                         asyncio.run,
-                        self.dispatch_async_worker_wrapper(
+                        self.async_worker_wrapper(
                             funct,
                             entities[start_idx:end_idx],
                             **kwargs,
@@ -1721,7 +1721,7 @@ class SOAPConnector(object):
 
         ## Fetch sales_rep for persons.
         if record_type == "customer":
-            self.dispatch_async_function(
+            self.dispatch_async_worker(
                 self.get_sales_rep_for_persons,
                 persons,
                 **{"record_type": record_type},
@@ -2054,7 +2054,7 @@ class SOAPConnector(object):
             and last_qty_available_change
             and len(records) > 0
         ):
-            self.dispatch_async_function(
+            self.dispatch_async_worker(
                 self.get_last_qty_available_change_for_items,
                 records,
                 **{"record_type": record_type},
@@ -2075,7 +2075,7 @@ class SOAPConnector(object):
 
         ## Fetch inventory_numbers for items.
         if record_type == "inventoryLot":
-            self.dispatch_async_function(
+            self.dispatch_async_worker(
                 self.get_inventory_numbers_for_items,
                 items,
                 **{"record_type": record_type},
@@ -2381,7 +2381,7 @@ class SOAPConnector(object):
             transactions.append(record)
 
         ## Fetch additional data for transactions.
-        self.dispatch_async_function(
+        self.dispatch_async_worker(
             self.get_additional_data_for_transactions,
             transactions,
             **{
