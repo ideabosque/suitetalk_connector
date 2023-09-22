@@ -4,7 +4,7 @@ from __future__ import print_function
 
 __author__ = "bibow"
 
-import re, asyncio, time
+import re, asyncio, time, math
 import concurrent.futures
 from datetime import datetime, timedelta
 from pytz import timezone
@@ -55,6 +55,7 @@ class SOAPConnector(object):
         self.transaction_update_statuses = setting["NETSUITEMAPPINGS"].get(
             "transaction_update_statuses", {}
         )
+        self.num_async_workers = setting.get("NUM_ASYNC_WORKERS", 10)
         self._soap_adaptor = None
 
     @property
@@ -106,20 +107,29 @@ class SOAPConnector(object):
         # Create a list to store the tasks
         tasks = []
 
-        num_segments = 10
+        num_segments = self.num_async_workers
         # Create a multiprocessing Pool
         with concurrent.futures.ThreadPoolExecutor() as executor:
             # Dispatch asynchronous tasks to different processes for each page index
             for i in range(num_segments):
-                start_idx = i * (len(entities) // num_segments)
-                end_idx = (i + 1) * (len(entities) // num_segments)
+                # Calculate the number of items per segment, rounding up to ensure no items are left out
+                items_per_segment = (
+                    len(entities) // num_segments
+                    if (
+                        i >= len(entities) // num_segments
+                        and len(entities) > num_segments
+                    )
+                    else math.ceil(len(entities) / num_segments)
+                )
+                # Calculate the start and end indices for the current segment
+                start_idx = i * items_per_segment
+                end_idx = min(
+                    (i + 1) * items_per_segment, len(entities)
+                )  # Ensure the last segment doesn't exceed the total
 
                 # Distribute any remaining items to the last segment
-                if i == num_segments - 1:
+                if i == num_segments - 1 and len(entities) % num_segments != 0:
                     end_idx += len(entities) % num_segments
-
-                if end_idx == 0:
-                    continue
 
                 # Dispatch the asynchronous task to the process pool
                 tasks.append(
@@ -132,6 +142,13 @@ class SOAPConnector(object):
                         ),
                     )
                 )
+
+                # Break the loop if the end index reaches the total
+                if end_idx == len(entities):
+                    break
+
+                if (i + 1) % 10 == 0:
+                    time.sleep(10)
 
         # Track progress and calculate the percentage
         total_tasks = len(tasks)
@@ -1359,9 +1376,9 @@ class SOAPConnector(object):
                     transaction.update({"internalId": record.internalId})
                     self.update(Transaction(**transaction))
 
-                ## Add notes.
-                self.insert_transaction_notes(notes, record.internalId)
-                return record.tranId
+            ## Add notes.
+            self.insert_transaction_notes(notes, record.internalId)
+            return record.tranId
 
         ## Insert the transaction if the record is not found.
         record = self.add(Transaction(**transaction))
