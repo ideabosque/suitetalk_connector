@@ -55,7 +55,7 @@ class SOAPConnector(object):
         self.transaction_update_statuses = setting["NETSUITEMAPPINGS"].get(
             "transaction_update_statuses", {}
         )
-        self.num_async_workers = setting.get("NUM_ASYNC_WORKERS", 10)
+        self.num_async_tasks = setting.get("NUM_ASYNC_TASKS", 10)
         self._soap_adaptor = None
 
     @property
@@ -98,18 +98,16 @@ class SOAPConnector(object):
         # Your asynchronous code here
         return funct(entities, **kwargs)
 
-    # Define a wrapper worker for the asynchronous task
-    async def async_worker_wrapper(self, funct, entities, **kwargs):
-        result = await self.async_worker(funct, entities, **kwargs)
-        return result
-
     def dispatch_async_worker(self, funct, entities, **kwargs):
         # Create a list to store the tasks
         tasks = []
+        num_segments = self.num_async_tasks
 
-        num_segments = self.num_async_workers
+        async def task_wrapper(funct, entities_slice, **kwargs):
+            return await self.async_worker(funct, entities_slice, **kwargs)
+
         # Create a multiprocessing Pool
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             # Dispatch asynchronous tasks to different processes for each page index
             for i in range(num_segments):
                 # Calculate the number of items per segment, rounding up to ensure no items are left out
@@ -135,7 +133,7 @@ class SOAPConnector(object):
                 tasks.append(
                     executor.submit(
                         asyncio.run,
-                        self.async_worker_wrapper(
+                        task_wrapper(
                             funct,
                             entities[start_idx:end_idx],
                             **kwargs,
