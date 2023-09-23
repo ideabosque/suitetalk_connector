@@ -108,26 +108,17 @@ class SOAPConnector(object):
 
         # Create a multiprocessing Pool
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            start_idx = 0
             # Dispatch asynchronous tasks to different processes for each page index
             for i in range(num_segments):
                 # Calculate the number of items per segment, rounding up to ensure no items are left out
                 items_per_segment = (
                     len(entities) // num_segments
-                    if (
-                        i >= len(entities) // num_segments
-                        and len(entities) > num_segments
-                    )
+                    if (i + 1) > (len(entities) % num_segments)
                     else math.ceil(len(entities) / num_segments)
                 )
-                # Calculate the start and end indices for the current segment
-                start_idx = i * items_per_segment
-                end_idx = min(
-                    (i + 1) * items_per_segment, len(entities)
-                )  # Ensure the last segment doesn't exceed the total
-
-                # Distribute any remaining items to the last segment
-                if i == num_segments - 1 and len(entities) % num_segments != 0:
-                    end_idx += len(entities) % num_segments
+                # Calculate the end index for the current segment
+                end_idx = start_idx + items_per_segment
 
                 # Dispatch the asynchronous task to the process pool
                 tasks.append(
@@ -145,6 +136,7 @@ class SOAPConnector(object):
                 if end_idx == len(entities):
                     break
 
+                start_idx = end_idx
                 if (i + 1) % 10 == 0:
                     time.sleep(10)
 
