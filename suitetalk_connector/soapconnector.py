@@ -2508,6 +2508,10 @@ class SOAPConnector(object):
             SearchAdvanced = self.get_data_type("ns13:CustomerSearchAdvanced")
             Search = self.get_data_type("ns13:CustomerSearch")
             SearchBasic = self.get_data_type("ns5:CustomerSearchBasic")
+        elif entity_type == "vendor":
+            SearchAdvanced = self.get_data_type("ns13:VendorSearchAdvanced")
+            Search = self.get_data_type("ns13:VendorSearch")
+            SearchBasic = self.get_data_type("ns5:VendorSearchBasic")
         elif entity_type == "item":
             SearchAdvanced = self.get_data_type("ns17:ItemSearchAdvanced")
             Search = self.get_data_type("ns17:ItemSearch")
