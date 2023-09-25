@@ -2496,6 +2496,11 @@ class SOAPConnector(object):
         return None
 
     def advance_search(self, entity_type, saved_search_id, **kwargs):
+        if kwargs.get("page_index"):
+            return self.search_more_with_id(
+                saved_search_id, kwargs.get("page_index"), advance=True
+            )
+
         SearchDateField = self.get_data_type("ns0:SearchDateField")
         SearchEnumMultiSelectField = self.get_data_type(
             "ns0:SearchEnumMultiSelectField"
