@@ -267,7 +267,7 @@ class SOAPAdaptor(object):
         wait=wait_exponential(multiplier=1, max=60),
         stop=stop_after_attempt(5),
     )
-    def async_search(self, search_record, search_preferences=None, advance=False):
+    def async_search(self, search_record, search_preferences=None):
         soapheaders = {
             "tokenPassport": self.token_passport,
             "applicationInfo": self.application_info,

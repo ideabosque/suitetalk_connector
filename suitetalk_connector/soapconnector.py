@@ -168,9 +168,9 @@ class SOAPConnector(object):
             search_id, page_index, advance=advance
         )
 
-    def async_search(self, search_record, search_preferences=None, advance=False):
+    def async_search(self, search_record, search_preferences=None):
         return self.soap_adaptor.async_search(
-            search_record, search_preferences=search_preferences, advance=advance
+            search_record, search_preferences=search_preferences
         )
 
     def check_async_status(self, job_id):
@@ -2551,6 +2551,9 @@ class SOAPConnector(object):
 
         if criteria:
             search_record.criteria = criteria
+
+        if kwargs.get("async", False):
+            return self.async_search(search_record)
 
         return self.search(search_record, advance=True)
 
