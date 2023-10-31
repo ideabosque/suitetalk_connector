@@ -2322,14 +2322,12 @@ class SOAPConnector(object):
 
     def get_additional_data_for_transactions(self, transactions, **kwargs):
         record_type = kwargs.get("record_type")
-        inventory_detail = kwargs.get("inventory_detail", False)
-        item_detail = kwargs.get("item_detail", False)
 
         for idx, transaction in enumerate(transactions):
             self.logger.debug(
                 f"{idx}) Processing {record_type} for {transaction['internalId']} at {time.strftime('%X')}."
             )
-            if inventory_detail and record_type in self.inventory_detail_record_types:
+            if record_type in self.inventory_detail_record_types:
                 self.logger.debug(
                     f"{idx}) Processing {record_type} to fetch inventory_detail for {transaction['internalId']} at {time.strftime('%X')}."
                 )
@@ -2342,7 +2340,7 @@ class SOAPConnector(object):
                         record_type, transaction.internalId
                     ).itemList
 
-            if item_detail and record_type in self.item_detail_record_types:
+            if record_type in self.item_detail_record_types:
                 self.logger.debug(
                     f"{idx}) Processing {record_type} to fetch item_detail for {transaction['internalId']} at {time.strftime('%X')}."
                 )
@@ -2393,8 +2391,6 @@ class SOAPConnector(object):
             transactions,
             **{
                 "record_type": record_type,
-                "item_detail": kwargs.get("item_detail", False),
-                "inventory_detail": kwargs.get("inventory_detail", False),
             },
         )
 
