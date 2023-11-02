@@ -84,9 +84,9 @@ class RESTConnector(object):
 
         if response.status_code == 200:
             return Utility.json_loads(response.text)
-        else:
-            self.logger.error(response.content)
-            raise Exception(response.content)
+
+        self.logger.error(response.content)
+        raise Exception(response.content)
 
     def get_record(
         self, record_type, id, use_external_id=False, expand_sub_resources=True
@@ -101,11 +101,11 @@ class RESTConnector(object):
 
         if response.status_code == 200:
             return Utility.json_loads(response.text)
-        elif response.status_code == 404:
+        if response.status_code == 404:
             return None
-        else:
-            self.logger.error(response.content)
-            raise Exception(response.content)
+
+        self.logger.error(response.content)
+        raise Exception(response.content)
 
     def get_records_by_condition(self, record_type, condition, limit=None, offset=None):
         request_url = f"{self.rest_services}/record/v1/{record_type}"
@@ -124,9 +124,9 @@ class RESTConnector(object):
 
         if response.status_code == 200:
             return Utility.json_loads(response.text)
-        else:
-            self.logger.error(response.content)
-            raise Exception(response.content)
+
+        self.logger.error(response.content)
+        raise Exception(response.content)
 
     def create_record(self, record_type, record, external_id=None):
         request_url = f"{self.rest_services}/record/v1/{record_type}"
@@ -143,9 +143,9 @@ class RESTConnector(object):
 
         if response.status_code == 204:
             return True
-        else:
-            self.logger.error(response.content)
-            raise Exception(response.content)
+
+        self.logger.error(response.content)
+        raise Exception(response.content)
 
     def update_record(
         self, record_type, id, record, params={}, use_external_id=False, method="PATCH"
@@ -163,9 +163,9 @@ class RESTConnector(object):
 
         if response.status_code == 204:
             return True
-        else:
-            self.logger.error(response.content)
-            raise Exception(response.content)
+
+        self.logger.error(response.content)
+        raise Exception(response.content)
 
     def get_record_id(self, record_type, field, value):
         condition = f'{field} is "{value}"'
@@ -630,3 +630,30 @@ class RESTConnector(object):
             ## Insert CustomerDeposit.
 
         return record["tranId"]
+
+    def execute_suiteql(self, suiteql, limit=None, offset=None):
+        request_url = f"{self.rest_services}/query/v1/suiteql"
+
+        params = {}
+        if limit:
+            params.update({"limit": limit})
+        if offset:
+            params.update({"offset": offset})
+
+        response = requests.post(
+            request_url,
+            auth=self.auth,
+            headers={
+                "prefer": "transient",
+            },
+            data=Utility.json_dumps({"q": suiteql}),
+            params=params,
+        )
+
+        if response.status_code == 200:
+            return Utility.json_loads(response.text)
+        if response.status_code == 404:
+            return None
+
+        self.logger.error(response.content)
+        raise Exception(response.content)
