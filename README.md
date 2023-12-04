@@ -436,7 +436,6 @@ kwargs = {
     "cut_date": "2022-02-04T16:00:00+00:00",
     "end_date": "2022-02-05T16:00:00+00:00",
     "limit": 100,
-    "inventory_detail": True,
     "subsidiary": "ABC",
 }
 
@@ -625,7 +624,6 @@ This approach equips you to retrieve persons of the specified record type, enabl
 - `cut_date`: This parameter signifies the timestamp of the most recent cut-off date. Format: YYYY-MM-DDTHH:MM:SS.
 - `end_date`: The concluding date for processing the request. Format: YYYY-MM-DDTHH:MM:SS.
 - `hours`: The time span in hours, starting from the cut date.
-- `inventory_detail` (for `get_transactions`): A boolean value indicating whether to obtain detailed inventory information.
 - `subsidiary`: Denotes the subsidiary of the company.
 - `item_types` (for `get_items`): A list enumerating the item record types to retrieve.
 - `custom_fields` (for `get_items`): A dictionary specifying custom fields and their corresponding values to serve as filtering conditions.
