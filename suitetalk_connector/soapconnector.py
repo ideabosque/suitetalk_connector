@@ -638,7 +638,10 @@ class SOAPConnector(object):
             return None
 
         _address = self.get_addr(address, addresses)
-        if _address is None:
+        if _address is None or (
+            f"{_address.addressbookAddress.addr1.strip()} {_address.addressbookAddress.addr2.strip()} {_address.addressbookAddress.addr3.strip()}".upper()
+            != f"{address.get('addr1', '').strip()} {address.get('addr2', '').strip()} {address.get('addr3', '').strip()}".upper()
+        ):
             return Address(
                 country=address.get("country"),
                 attention=address.get("attention"),
@@ -894,9 +897,8 @@ class SOAPConnector(object):
 
     ## Insert/Update a task.
     ##
-    ## @param record_type: The record type.
     ## @param task: The task.
-    def insert_update_task(self, transaction_record_type, task):
+    def insert_update_task(self, task):
         RecordRef = self.get_data_type("ns0:RecordRef")
         CustomFieldList = self.get_data_type("ns0:CustomFieldList")
         TaskContactList = self.get_data_type("ns7:TaskContactList")
@@ -947,22 +949,24 @@ class SOAPConnector(object):
             task.update({"customFieldList": CustomFieldList(customField=custom_fields)})
 
         # Lookup transaction.
-        record_lookup = self.lookup_record_fields.get(transaction_record_type)
-        record_lookup_value = task.get(record_lookup["field"])
-        if record_lookup_value is None:
-            record_lookup_value = _custom_fields.get(record_lookup["field"])
-        record = self.get_record_by_variables(
-            transaction_record_type,
-            **{record_lookup["field"]: record_lookup_value},
-        )
-        task.update(
-            {
-                "transaction": RecordRef(
-                    internalId=record.internalId,
-                    type=transaction_record_type,
-                )
-            }
-        )
+        if task.get("transaction_record_type"):
+            transaction_record_type = task.get("transaction_record_type")
+            record_lookup = self.lookup_record_fields.get(transaction_record_type)
+            record_lookup_value = task.get(record_lookup["field"])
+            if record_lookup_value is None:
+                record_lookup_value = _custom_fields.get(record_lookup["field"])
+            record = self.get_record_by_variables(
+                transaction_record_type,
+                **{record_lookup["field"]: record_lookup_value},
+            )
+            task.update(
+                {
+                    "transaction": RecordRef(
+                        internalId=record.internalId,
+                        type=transaction_record_type,
+                    )
+                }
+            )
 
         self.logger.info(task)
 
