@@ -639,7 +639,7 @@ class SOAPConnector(object):
 
         _address = self.get_addr(address, addresses)
         if _address is None or (
-            f"{_address.addressbookAddress.addr1.strip()} {_address.addressbookAddress.addr2.strip()} {_address.addressbookAddress.addr3.strip()}".upper()
+            f"{_address.addressbookAddress.addr1 if _address.addressbookAddress.addr1 else ''} {_address.addressbookAddress.addr2 if _address.addressbookAddress.addr2 else ''} {_address.addressbookAddress.addr3 if _address.addressbookAddress.addr3 else ''}".upper()
             != f"{address.get('addr1', '').strip()} {address.get('addr2', '').strip()} {address.get('addr3', '').strip()}".upper()
         ):
             return Address(
