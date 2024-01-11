@@ -627,8 +627,46 @@ class SOAPConnector(object):
                         )
         return search_custom_fields
 
-    def get_address(self, address, addresses=[]):
+    def get_address(self, address, addresses=[], default=None):
         Address = self.get_data_type("ns5:Address")
+
+        # Use default billing address or default shipping address in NetSuite if it is set.
+        if default is not None:
+            if default == "billing":
+                _addresses = list(
+                    filter(
+                        lambda addr: addr.addressbookAddress is not None
+                        and addr.defaultBilling == True,
+                        addresses,
+                    )
+                )
+            elif default == "shipping":
+                _addresses = list(
+                    filter(
+                        lambda addr: addr.addressbookAddress is not None
+                        and addr.defaultShipping == True,
+                        addresses,
+                    )
+                )
+            else:
+                raise Exception(
+                    f"The default address type ({default}) is not supported."
+                )
+
+            if len(_addresses) > 0:
+                return Address(
+                    country=_addresses[0].addressbookAddress.country,
+                    attention=_addresses[0].addressbookAddress.attention,
+                    addressee=_addresses[0].addressbookAddress.addressee,
+                    addrPhone=_addresses[0].addressbookAddress.addrPhone,
+                    addr1=_addresses[0].addressbookAddress.addr1,
+                    addr2=_addresses[0].addressbookAddress.addr2,
+                    addr3=_addresses[0].addressbookAddress.addr3,
+                    city=_addresses[0].addressbookAddress.city,
+                    state=_addresses[0].addressbookAddress.state,
+                    zip=_addresses[0].addressbookAddress.zip,
+                )
+
         if not (
             address.get("city")
             and address.get("state")
@@ -1273,6 +1311,9 @@ class SOAPConnector(object):
             billingAddress = self.get_address(
                 transaction.get("billingAddress"),
                 addresses=customer.addressbookList.addressbook,
+                default="billing"
+                if self.setting.get("DEFAULT_TRANSACTION_BILLING", False)
+                else None,
             )
             transaction.update({"billingAddress": billingAddress})
 
@@ -1281,6 +1322,9 @@ class SOAPConnector(object):
             shippingAddress = self.get_address(
                 transaction.get("shippingAddress"),
                 addresses=customer.addressbookList.addressbook,
+                default="shipping"
+                if self.setting.get("DEFAULT_TRANSACTION_SHIPPING", False)
+                else None,
             )
             transaction.update({"shippingAddress": shippingAddress})
 
