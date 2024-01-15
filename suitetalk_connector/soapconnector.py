@@ -1047,7 +1047,7 @@ class SOAPConnector(object):
         InventoryAssignmentList = self.get_data_type("ns5:InventoryAssignmentList")
         InventoryAssignment = self.get_data_type("ns5:InventoryAssignment")
 
-        # Items
+        # Initialize variables
         message = None
         transaction_items = []
 
@@ -1057,13 +1057,22 @@ class SOAPConnector(object):
                 "priceLevel", **{"name": pricelevel}
             )
         for _item in _items:
+            # Extract item attributes
             sku = _item.get("sku")
             qty = _item.get("qty")
             commit_inventory = _item.get("commitInventory")
             lot_no_locs = _item.get("lot_no_locs")
+            item_record_type = _item.get("itemRecordType", "inventoryItem")
+
+            # Retrieve item information
             item = self.get_record_by_variables(
-                "inventoryItem", **{"itemId": sku, "operator": "is"}
+                item_record_type,
+                **{
+                    self.lookup_record_fields[item_record_type]["field"]: sku,
+                    "operator": "is",
+                },
             )
+
             if item is not None:
                 transaction_item = TransactionItem(
                     item=RecordRef(internalId=item.internalId),
@@ -1292,7 +1301,7 @@ class SOAPConnector(object):
         ):
             transaction.update({"terms": customer.terms})
 
-        # Items
+        # Get tranaction items
         transaction_items, message = self.get_transaction_items(
             record_type,
             transaction.pop("items"),
