@@ -1195,32 +1195,31 @@ class SOAPConnector(object):
     ## Insert a customer deposit.
     ##
     ## @param kwargs: The customer deposit.
-    def insert_customer_deposit(self, **kwargs):
+    def insert_customer_deposit(self, **_customer_deposit):
         # Import necessary data types
         RecordRef = self.get_data_type("ns0:RecordRef")
         CustomerDeposit = self.get_data_type("ns23:CustomerDeposit")
 
         # Check if payment is zero, if so, return early
-        if kwargs["payment"] == 0:
+        if _customer_deposit["payment"] == 0:
             return
 
         # Create a dictionary for customer deposit data
         customer_deposit = {
-            "salesOrder": RecordRef(internalId=kwargs["sales_order_internal_id"]),
-            "customer": RecordRef(internalId=kwargs["customer_internal_id"]),
-            "tranDate": kwargs["tran_date"],
-            "subsidiary": kwargs["subsidiary"],
-            "paymentMethod": kwargs["payment_method"],
+            "salesOrder": RecordRef(internalId=_customer_deposit["sales_order_internal_id"]),
+            "customer": RecordRef(internalId=_customer_deposit["customer_internal_id"]),
+            "tranDate": _customer_deposit["tran_date"],
+            "subsidiary": _customer_deposit["subsidiary"],
+            "paymentMethod": _customer_deposit["payment_method"],
             "customForm": RecordRef(
                 internalId=self.get_select_value_id(
-                    kwargs["custom_form"],
+                    _customer_deposit["custom_form"],
                     "customForm",
                     record_type="customerDeposit",
                 )
             ),
-            "payment": kwargs["payment"],
-            "status": kwargs["status"],
-            "ccApproved": kwargs["cc_approved"],
+            "payment": _customer_deposit["payment"],
+            "ccApproved": _customer_deposit["cc_approved"],
         }
 
         # Add the customer deposit to the system
@@ -1448,7 +1447,6 @@ class SOAPConnector(object):
                     sum([item.amount for item in record.itemList.item])
                     + record.shippingCost
                 ),
-                "status": "Fully Applied",
                 "cc_approved": True,
             }
             self.insert_customer_deposit(**customer_deposit)

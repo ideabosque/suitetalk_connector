@@ -555,28 +555,28 @@ class RESTConnector(object):
     ## Insert a customer deposit.
     ##
     ## @param kwargs: The customer deposit.
-    def insert_customer_deposit(self, **kwargs):
+    def insert_customer_deposit(self, **_customer_deposit):
         # Check if payment is zero, if so, return early
-        if kwargs["payment"] == 0:
+        if _customer_deposit["payment"] == 0:
             return
 
         # Create a dictionary for customer deposit data
         customer_deposit = {
-            "salesOrder": {"id": kwargs["sales_order_internal_id"]},
-            "customer": {"id": kwargs["customer_internal_id"]},
-            # "tranDate": kwargs["tran_date"],
-            "subsidiary": kwargs["subsidiary"],
-            "paymentMethod": kwargs["payment_method"],
-            # "customForm": {
-            #     "id": self.get_select_value_id(
-            #         kwargs["custom_form"],
-            #         "customForm",
-            #         "customerDeposit",
-            #     )
-            # },
-            "payment": kwargs["payment"],
-            "status": kwargs["status"],
-            "ccApproved": kwargs["cc_approved"],
+            "salesOrder": {"id": _customer_deposit["sales_order_internal_id"]},
+            "customer": {"id": _customer_deposit["customer_internal_id"]},
+            "tranDate": _customer_deposit["tran_date"].strftime(datetime_format),
+            "subsidiary": _customer_deposit["subsidiary"],
+            "paymentMethod": _customer_deposit["payment_method"],
+            "customForm": {
+                "id": "67"
+                # "id": self.get_select_value_id(
+                #     _customer_deposit["custom_form"],
+                #     "customForm",
+                #     "customerDeposit",
+                # )
+            },
+            "payment": _customer_deposit["payment"],
+            "ccApproved": _customer_deposit["cc_approved"],
         }
 
         # Add the customer deposit to the system
@@ -773,7 +773,6 @@ class RESTConnector(object):
                     sum([item["amount"] for item in record["item"]["items"]])
                     + record["shippingCost"]
                 ),
-                "status": {"id": "C"},  # "Fully Applied",
                 "cc_approved": True,
             }
             ## Insert CustomerDeposit.
