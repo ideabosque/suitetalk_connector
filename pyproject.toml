@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "SuiteTalk-Connector"
-version = "0.0.4.beta.1"
+version = "0.0.5.beta.1"
 description = "Use to connect NetSuite SuiteTalk SOAP API."
 authors = ["Idea Bosque <ideabosque@gmail.com>"]
 license = "MIT"
