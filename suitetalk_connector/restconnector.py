@@ -18,10 +18,17 @@ class RESTConnector(object):
     def __init__(self, logger, **setting):
         self.logger = logger
         self.setting = setting
-        self.lookup_select_values = setting["NETSUITEMAPPINGS"]["lookup_select_values"]
-        self.lookup_record_fields = setting["NETSUITEMAPPINGS"]["lookup_record_fields"]
+        self.lookup_select_values = setting["NETSUITEMAPPINGSREST"][
+            "lookup_select_values"
+        ]
+        self.lookup_record_fields = setting["NETSUITEMAPPINGSREST"][
+            "lookup_record_fields"
+        ]
         company_url = f"https://{self.setting['ACCOUNT'].lower().replace('_', '-')}.suitetalk.api.netsuite.com"
         self.rest_services = f"{company_url}/services/rest"
+        self.transaction_update_statuses = setting["NETSUITEMAPPINGSREST"].get(
+            "transaction_update_statuses", {}
+        )
         self._soap_adaptor = None
 
     @property
@@ -87,6 +94,10 @@ class RESTConnector(object):
 
         self.logger.error(response.content)
         raise Exception(response.content)
+
+    def get_model(self, record_type):
+        schema = self.get_schema(record_type)
+        return warlock.model_factory(schema)
 
     def get_record(
         self, record_type, id, use_external_id=False, expand_sub_resources=True
@@ -222,7 +233,33 @@ class RESTConnector(object):
 
         return custom_fields
 
-    def get_address(self, address, addresses=[]):
+    def get_address(self, address, addresses=[], default=None):
+        # Use default billing address or default shipping address in NetSuite if it is set.
+        if default is not None:
+            if default == "billing":
+                _addresses = list(
+                    filter(
+                        lambda addr: addr.get("addressBookAddress") is not None
+                        and addr["defaultBilling"] == True,
+                        addresses,
+                    )
+                )
+            elif default == "shipping":
+                _addresses = list(
+                    filter(
+                        lambda addr: addr.get("addressBookAddress") is not None
+                        and addr["defaultShipping"] == True,
+                        addresses,
+                    )
+                )
+            else:
+                raise Exception(
+                    f"The default address type ({default}) is not supported."
+                )
+
+            if len(_addresses) > 0:
+                return {"id": str(_addresses[0]["id"])}
+
         if not (
             address.get("city")
             and address.get("state")
@@ -395,11 +432,12 @@ class RESTConnector(object):
             qty = _item.get("qty")
             commit_inventory = _item.get("commitInventory")
             lot_no_locs = _item.get("lot_no_locs")
+            item_record_type = _item.get("itemRecordType", "inventoryItem")
 
             # Retrieve item information
             item = self.get_record_by_variables(
-                "inventoryItem",
-                **{self.lookup_record_fields["inventoryItem"]["field"]: sku},
+                item_record_type,
+                **{self.lookup_record_fields[item_record_type]["field"]: sku},
             )
 
             if item:
@@ -438,7 +476,7 @@ class RESTConnector(object):
 
                 if difference != 0 and _item.get("price"):
                     transaction_item.update(
-                        {"price": {"id": "-1"}, "rate": _item.get("price")}
+                        {"price": {"id": "-1"}, "rate": float(_item.get("price"))}
                     )
 
                 # Calculate the subtotal for each line item.
@@ -514,15 +552,66 @@ class RESTConnector(object):
 
         return transaction_items, message
 
+    ## Insert a customer deposit.
+    ##
+    ## @param kwargs: The customer deposit.
+    def insert_customer_deposit(self, **_customer_deposit):
+        # Check if payment is zero, if so, return early
+        if _customer_deposit["payment"] == 0:
+            return
+
+        # Create a dictionary for customer deposit data
+        customer_deposit = {
+            "salesOrder": {"id": _customer_deposit["sales_order_internal_id"]},
+            "customer": {"id": _customer_deposit["customer_internal_id"]},
+            "tranDate": _customer_deposit["tran_date"].strftime(datetime_format),
+            "subsidiary": _customer_deposit["subsidiary"],
+            "paymentMethod": _customer_deposit["payment_method"],
+            "customForm": {
+                "id": "67"
+                # "id": self.get_select_value_id(
+                #     _customer_deposit["custom_form"],
+                #     "customForm",
+                #     "customerDeposit",
+                # )
+            },
+            "payment": _customer_deposit["payment"],
+            "ccApproved": _customer_deposit["cc_approved"],
+        }
+
+        # Add the customer deposit to the system
+        CustomerDeposit = self.get_model("customerDeposit")
+        self.create_record("customerDeposit", CustomerDeposit(**customer_deposit))
+
+    ## Insert transaction notes.
+    ##
+    ## @param notes: The transaction notes.
+    def insert_transaction_notes(self, notes, id):
+        if notes is None:
+            return
+
+        # Import necessary data models
+        Note = self.get_model("Note")
+
+        # Iterate through notes and insert them
+        for note in notes:
+            if note["memo"] is None or note["memo"] == "":
+                continue
+
+            self.create_record(
+                "note",
+                Note(
+                    **{
+                        "title": note["title"],
+                        "note": note["memo"],
+                        "transaction": {"id": id},
+                    }
+                ),
+            )
+
     def insert_update_transaction(self, record_type, transaction):
         payment_method = transaction.get("paymentMethod")
-
-        # Lookup select values.
-        for key, value in transaction.items():
-            if key in self.setting["NETSUITEMAPPINGS"]["lookup_select_values"].keys():
-                transaction.update(
-                    {key: {"id": self.get_select_value_id(value, key, record_type)}}
-                )
+        notes = transaction.get("notes")
 
         # Get/Create the customer.
         ext_customer_id = transaction.pop("extCustomerId", None)
@@ -530,10 +619,25 @@ class RESTConnector(object):
         customer = self.get_customer(ext_customer_id, ns_customer_id)
         transaction.update({"entity": {"id": customer["id"]}})
 
+        # Lookup select values.
+        for key, value in transaction.items():
+            if (
+                key
+                in self.setting["NETSUITEMAPPINGSREST"]["lookup_select_values"].keys()
+            ):
+                transaction.update(
+                    {key: {"id": self.get_select_value_id(value, key, record_type)}}
+                )
+
         # Replace the term with the customer term.
-        if customer.get("terms") and transaction.get("terms") is None:
+        if (
+            customer.get("terms")
+            and transaction.get("terms") is None
+            and record_type in ["salesOrder", "estimate"]
+        ):
             transaction.update({"terms": {"id": customer["terms"]["id"]}})
 
+        # Get tranaction items.
         transaction_items, message = self.get_transaction_items(
             record_type,
             transaction.pop("items"),
@@ -545,25 +649,33 @@ class RESTConnector(object):
             transaction.update({"message": message})
         transaction.update({"item": {"items": transaction_items}})
 
-        # Billing Address
+        # Billing Address.
         billing_address = self.get_address(
             transaction.pop("billingAddress"),
             addresses=customer["addressBook"]["items"],
+            default="billing"
+            if self.setting.get("DEFAULT_TRANSACTION_BILLING", False)
+            else None,
         )
-        if billing_address.get("id"):
-            transaction.update({"billAddressList": billing_address})
-        else:
-            transaction.update({"billingAddress": billing_address})
+        if billing_address:
+            if billing_address.get("id"):
+                transaction.update({"billAddressList": billing_address})
+            else:
+                transaction.update({"billingAddress": billing_address})
 
-        # Shipping Address
+        # Shipping Address.
         shipping_address = self.get_address(
             transaction.pop("shippingAddress"),
             addresses=customer["addressBook"]["items"],
+            default="shipping"
+            if self.setting.get("DEFAULT_TRANSACTION_SHIPPING", False)
+            else None,
         )
-        if shipping_address.get("id"):
-            transaction.update({"shipAddressList": shipping_address})
-        else:
-            transaction.update({"shippingAddress": shipping_address})
+        if shipping_address:
+            if shipping_address.get("id"):
+                transaction.update({"shipAddressList": shipping_address})
+            else:
+                transaction.update({"shippingAddress": shipping_address})
 
         # Check if shipDate, tranData is None or not.
         current = datetime.now(tz=timezone(self.setting.get("TIMEZONE", "UTC")))
@@ -586,8 +698,21 @@ class RESTConnector(object):
             )
 
         # orderStatus.
+        # It should be done in the lookup_select_values.
 
         # Created From.
+        if transaction.get("createdFrom"):
+            lookup_join_fields = self.lookup_join_fields.get(record_type)
+            created_from_record_lookup = self.lookup_record_fields.get(
+                lookup_join_fields["created_from_lookup_type"]
+            )
+            created_from_record = self.get_record_by_variables(
+                lookup_join_fields["created_from_lookup_type"],
+                **{created_from_record_lookup["field"]: transaction["createdFrom"]},
+            )
+
+            if created_from_record:
+                transaction.update({"createdFrom": {"id": created_from_record["id"]}})
 
         # Order Custom Fields
         custom_fields = self.get_custom_fields(
@@ -599,21 +724,30 @@ class RESTConnector(object):
 
         self.logger.info(Utility.json_dumps(transaction))
 
-        transaction_schema = self.get_schema(record_type)
-        Transaction = warlock.model_factory(transaction_schema)
+        Transaction = self.get_model(record_type)
 
         record_lookup_field = self.lookup_record_fields.get(record_type)["field"]
         record = self.get_record_by_variables(
             record_type,
             **{record_lookup_field: transaction.get(record_lookup_field)},
         )
-        if record:  # Update the transaction if record is not None.
-            args = [record_type, record["id"], Transaction(**transaction)]
-            if record_type == "salesOrder":
-                self.update_record(*args, params={"replace": "item"})
-            else:
-                self.update_record(*args)
-            return record["tranId"]
+        if record:
+            ## Only if the transaction status is in the update statuses list, then update the record.
+            ## Or if the record type of the transaction is not in the transaction_update_statuses's key list then update the record.
+            if (
+                record_type not in self.transaction_update_statuses.keys()
+                or transaction.get("status")
+                in self.transaction_update_statuses[record_type]
+            ):
+                args = [record_type, record["id"], Transaction(**transaction)]
+                if record_type == "salesOrder":
+                    self.update_record(*args, params={"replace": "item"})
+                else:
+                    self.update_record(*args)
+
+                ## Add notes
+                self.insert_transaction_notes(notes, record["id"])
+                return record["tranId"]
 
         # Create a transaction.
         self.create_record(record_type, Transaction(**transaction))
@@ -626,9 +760,26 @@ class RESTConnector(object):
         if record_type == "salesOrder" and payment_method in self.setting.get(
             "CREATE_CUSTOMER_DEPOSIT", []
         ):
-            pass
+            customer_deposit = {
+                "sales_order_internal_id": record["id"],
+                "customer_internal_id": customer["id"],
+                "tran_date": transaction["tranDate"]
+                if transaction.get("tranDate")
+                else current + timedelta(hours=24),
+                "subsidiary": transaction["subsidiary"],
+                "payment_method": transaction["paymentMethod"],
+                "custom_form": "Standard Customer Deposit",
+                "payment": (
+                    sum([item["amount"] for item in record["item"]["items"]])
+                    + record["shippingCost"]
+                ),
+                "cc_approved": True,
+            }
             ## Insert CustomerDeposit.
+            self.insert_customer_deposit(**customer_deposit)
 
+        ## Add notes
+        self.insert_transaction_notes(notes, record["id"])
         return record["tranId"]
 
     def execute_suiteql(self, suiteql, limit=None, offset=None):
