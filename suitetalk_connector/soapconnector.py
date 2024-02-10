@@ -55,7 +55,7 @@ class SOAPConnector(object):
         self.transaction_update_statuses = setting["NETSUITEMAPPINGS"].get(
             "transaction_update_statuses", {}
         )
-        self.num_async_tasks = setting.get("NUM_ASYNC_TASKS", 10)
+        self.num_async_tasks = int(setting.get("NUM_ASYNC_TASKS", 10))
         self._soap_adaptor = None
 
     @property
@@ -797,15 +797,15 @@ class SOAPConnector(object):
 
     def get_addr_by_full_addr(self, address, _addresses):
         full_addr = "{addr1} {addr2} {addr3}".format(
-            addr1=address.get("addr1").strip()
-            if address.get("addr1") is not None
-            else "",
-            addr2=address.get("addr2").strip()
-            if address.get("addr2") is not None
-            else "",
-            addr3=address.get("addr3").strip()
-            if address.get("addr3") is not None
-            else "",
+            addr1=(
+                address.get("addr1").strip() if address.get("addr1") is not None else ""
+            ),
+            addr2=(
+                address.get("addr2").strip() if address.get("addr2") is not None else ""
+            ),
+            addr3=(
+                address.get("addr3").strip() if address.get("addr3") is not None else ""
+            ),
         ).strip()
 
         elements = [
@@ -917,16 +917,18 @@ class SOAPConnector(object):
         RecordRef = self.get_data_type("ns0:RecordRef")
         entity = list(
             map(
-                lambda key: {
-                    key: RecordRef(
-                        internalId=self.get_select_value_id(
-                            entity[key], key, record_type=record_type
-                        )
-                    ),
-                }
-                if key
-                in self.setting["NETSUITEMAPPINGS"]["lookup_select_values"].keys()
-                else {key: entity[key]},
+                lambda key: (
+                    {
+                        key: RecordRef(
+                            internalId=self.get_select_value_id(
+                                entity[key], key, record_type=record_type
+                            )
+                        ),
+                    }
+                    if key
+                    in self.setting["NETSUITEMAPPINGS"]["lookup_select_values"].keys()
+                    else {key: entity[key]}
+                ),
                 entity.keys(),
             )
         )
@@ -965,12 +967,22 @@ class SOAPConnector(object):
 
             task_contacts = list(
                 map(
-                    lambda contact_customer: TaskContact(
-                        **{"company": RecordRef(internalId=contact_customer.internalId)}
-                    )
-                    if contact_customer.isPerson == False
-                    else TaskContact(
-                        **{"contact": RecordRef(internalId=contact_customer.internalId)}
+                    lambda contact_customer: (
+                        TaskContact(
+                            **{
+                                "company": RecordRef(
+                                    internalId=contact_customer.internalId
+                                )
+                            }
+                        )
+                        if contact_customer.isPerson == False
+                        else TaskContact(
+                            **{
+                                "contact": RecordRef(
+                                    internalId=contact_customer.internalId
+                                )
+                            }
+                        )
                     ),
                     contact_customers,
                 )
@@ -1206,7 +1218,9 @@ class SOAPConnector(object):
 
         # Create a dictionary for customer deposit data
         customer_deposit = {
-            "salesOrder": RecordRef(internalId=_customer_deposit["sales_order_internal_id"]),
+            "salesOrder": RecordRef(
+                internalId=_customer_deposit["sales_order_internal_id"]
+            ),
             "customer": RecordRef(internalId=_customer_deposit["customer_internal_id"]),
             "tranDate": _customer_deposit["tran_date"],
             "subsidiary": _customer_deposit["subsidiary"],
@@ -1319,9 +1333,11 @@ class SOAPConnector(object):
             billingAddress = self.get_address(
                 transaction.get("billingAddress"),
                 addresses=customer.addressbookList.addressbook,
-                default="billing"
-                if self.setting.get("DEFAULT_TRANSACTION_BILLING", False)
-                else None,
+                default=(
+                    "billing"
+                    if self.setting.get("DEFAULT_TRANSACTION_BILLING", False)
+                    else None
+                ),
             )
             transaction.update({"billingAddress": billingAddress})
 
@@ -1330,9 +1346,11 @@ class SOAPConnector(object):
             shippingAddress = self.get_address(
                 transaction.get("shippingAddress"),
                 addresses=customer.addressbookList.addressbook,
-                default="shipping"
-                if self.setting.get("DEFAULT_TRANSACTION_SHIPPING", False)
-                else None,
+                default=(
+                    "shipping"
+                    if self.setting.get("DEFAULT_TRANSACTION_SHIPPING", False)
+                    else None
+                ),
             )
             transaction.update({"shippingAddress": shippingAddress})
 
@@ -1437,9 +1455,11 @@ class SOAPConnector(object):
             customer_deposit = {
                 "sales_order_internal_id": record.internalId,
                 "customer_internal_id": customer.internalId,
-                "tran_date": transaction["tranDate"]
-                if transaction.get("tranDate")
-                else current + timedelta(hours=24),
+                "tran_date": (
+                    transaction["tranDate"]
+                    if transaction.get("tranDate")
+                    else current + timedelta(hours=24)
+                ),
                 "subsidiary": transaction["subsidiary"],
                 "payment_method": transaction["paymentMethod"],
                 "custom_form": "Standard Customer Deposit",
@@ -1629,9 +1649,11 @@ class SOAPConnector(object):
             item,
             **{
                 "itemId": item.pop("itemId"),
-                "upcCode": "{:12}".format(int(eval(item.get("upcCode"))))
-                if item.get("upcCode")
-                else None,
+                "upcCode": (
+                    "{:12}".format(int(eval(item.get("upcCode"))))
+                    if item.get("upcCode")
+                    else None
+                ),
                 "mpn": item.get("mpn", ""),
                 "weight": item.get("weight", 0.1),
                 "weightUnit": item.get("weightUnit", "lb"),
