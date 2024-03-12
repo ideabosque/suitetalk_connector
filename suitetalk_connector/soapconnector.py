@@ -193,6 +193,9 @@ class SOAPConnector(object):
     def upsert(self, record):
         return self.soap_adaptor.upsert(record)
 
+    def attach(self, attach_reference):
+        return self.soap_adaptor.attach(attach_reference)
+    
     def get_select_values(self, record_type, field, sublist=None):
         return self.soap_adaptor.get_select_values(record_type, field, sublist=sublist)
 
@@ -1286,6 +1289,7 @@ class SOAPConnector(object):
         self.logger.info(transaction)
         payment_method = transaction.get("paymentMethod")
         notes = transaction.get("notes")
+        files = transaction.get("files", [])
 
         # Get/Create the customer
         ext_customer_id = transaction.pop("extCustomerId", None)
@@ -1418,7 +1422,6 @@ class SOAPConnector(object):
             record_type,
             **{record_lookup["field"]: record_lookup_value},
         )
-
         if record:
             ## Only if the transaction status is in the update statuses list, then update the record.
             ## Or if the record type of the transaction is not in the transaction_update_statuses's key list then update the record.
@@ -1470,9 +1473,11 @@ class SOAPConnector(object):
                 "cc_approved": True,
             }
             self.insert_customer_deposit(**customer_deposit)
-
         ## Add notes.
         self.insert_transaction_notes(notes, record.internalId)
+        ## Add files.
+        if len(files) > 0:
+            self.insert_transaction_files(files, record.internalId, record_type)
         return record.tranId
 
     def get_contact_roles_list(self, contacts, company_internal_id=None):
@@ -2568,6 +2573,43 @@ class SOAPConnector(object):
             return result["records"]
         return None
 
+    ## Insert transaction files.
+    ##
+    ## @param files: The transaction notes.
+    def insert_transaction_files(self, files, internal_id, record_type):
+        if len(files) == 0:
+            return
+
+        # Import necessary data types
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        File = self.get_data_type("ns11:File")
+
+        for file in files:
+            if file["content"] is None or file["content"] == "":
+                continue
+
+            ns_file = self.add(
+                File(
+                    name=file["name"],
+                    attachFrom="_web",
+                    content=file["content"],
+                    folder=RecordRef(internalId=file["folder_internal_id"]),
+                    isOnline=True
+                )
+            )
+            self.attach_record(ns_file.internalId, "file", internal_id, record_type)
+    
+    def attach_record(self, attach_internal_id, attach_type, attach_to_internal_id, attach_to_type):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        AttachReference = self.get_data_type("ns0:AttachBasicReference")
+        result = self.attach(
+            AttachReference(
+                attachTo=RecordRef(internalId=attach_to_internal_id, type=attach_to_type),
+                attachedRecord=RecordRef(internalId=attach_internal_id, type=attach_type)
+            )
+        )
+        return result
+    
     def advance_search(self, entity_type, saved_search_id, **kwargs):
         if kwargs.get("search_id") and kwargs.get("page_index"):
             return self.search_more_with_id(
