@@ -1594,6 +1594,12 @@ class SOAPConnector(object):
                 **{"id": person.pop("companyInternalId")},
             )
             person.update({"company": RecordRef(internalId=record.internalId)})
+        elif person.get("companyEntityId"):
+            record = self.get_record_by_variables(
+                "customer",
+                **{"entityId": person.pop("companyEntityId")},
+            )
+            person.update({"company": RecordRef(internalId=record.internalId)})
 
         # Lookup categories.
         if person.get("categories"):
@@ -2451,6 +2457,13 @@ class SOAPConnector(object):
                         f"{idx}) Failed {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
                     )
 
+            ## add Notes
+            try:
+                transaction.noteList = self.get_transaction_notes(transaction.internalId, record_type)
+            except:
+                self.logger.exception(
+                    f"{idx}) Failed {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
+                )
         return
 
     def get_transactions(self, record_type, records, **kwargs):
@@ -2609,6 +2622,35 @@ class SOAPConnector(object):
             )
         )
         return result
+    
+    def get_transaction_notes(self, internal_id, record_type):
+        NoteSearch = self.get_data_type("ns9:NoteSearch")
+        TransactionSearchBasic = self.get_data_type("ns5:TransactionSearchBasic")
+        SearchEnumMultiSelectField = self.get_data_type(
+            "ns0:SearchEnumMultiSelectField"
+        )
+        # transactionJoin
+        SearchPreferences = self.get_data_type("ns4:SearchPreferences")
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
+        transactionSearch = TransactionSearchBasic(
+            type=SearchEnumMultiSelectField(
+                searchValue=[record_type], operator="anyOf"
+            ),
+            internalId=SearchMultiSelectField(
+                searchValue=[RecordRef(internalId=internal_id)],
+                operator="anyOf",
+            ),
+        )
+        search_record = NoteSearch(
+            transactionJoin=transactionSearch
+        )
+        search_preferences = SearchPreferences(bodyFieldsOnly=False)
+        result = self.search(search_record, search_preferences=search_preferences)
+        assert result["total_pages"] <= 1, "More than one page!!!"
+        if result["total_records"] > 0:
+            return result["records"]
+        return None
     
     def advance_search(self, entity_type, saved_search_id, **kwargs):
         if kwargs.get("search_id") and kwargs.get("page_index"):
