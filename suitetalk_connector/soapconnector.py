@@ -1443,8 +1443,8 @@ class SOAPConnector(object):
                     transaction.update({"internalId": record.internalId})
                     self.update(Transaction(**transaction))
 
-            ## Add notes.
-            self.insert_transaction_notes(notes, record.internalId)
+                ## Add notes.
+                self.insert_transaction_notes(notes, record.internalId)
             return record.tranId
 
         ## Insert the transaction if the record is not found.
