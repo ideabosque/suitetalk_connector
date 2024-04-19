@@ -157,6 +157,26 @@ class SOAPAdaptor(object):
         wait=wait_exponential(multiplier=1, max=60),
         stop=stop_after_attempt(5),
     )
+    def attach(self, attach_reference=None):
+        soapheaders = {
+            "tokenPassport": self.token_passport,
+            "applicationInfo": self.application_info,
+        }
+        response = self.service.attach(attachReference=attach_reference, _soapheaders=soapheaders)
+        write_response = response["body"]["writeResponse"]
+        is_success = write_response["status"]["isSuccess"]
+
+        if not is_success:
+            raise Exception(write_response["status"]["statusDetail"])
+
+        updated_record = write_response["baseRef"]
+        return updated_record
+    
+    @retry(
+        reraise=True,
+        wait=wait_exponential(multiplier=1, max=60),
+        stop=stop_after_attempt(5),
+    )
     def update(self, record=None):
         soapheaders = {
             "tokenPassport": self.token_passport,

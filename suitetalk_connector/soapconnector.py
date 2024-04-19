@@ -55,7 +55,7 @@ class SOAPConnector(object):
         self.transaction_update_statuses = setting["NETSUITEMAPPINGS"].get(
             "transaction_update_statuses", {}
         )
-        self.num_async_tasks = setting.get("NUM_ASYNC_TASKS", 10)
+        self.num_async_tasks = int(setting.get("NUM_ASYNC_TASKS", 10))
         self._soap_adaptor = None
 
     @property
@@ -193,6 +193,9 @@ class SOAPConnector(object):
     def upsert(self, record):
         return self.soap_adaptor.upsert(record)
 
+    def attach(self, attach_reference):
+        return self.soap_adaptor.attach(attach_reference)
+    
     def get_select_values(self, record_type, field, sublist=None):
         return self.soap_adaptor.get_select_values(record_type, field, sublist=sublist)
 
@@ -797,15 +800,15 @@ class SOAPConnector(object):
 
     def get_addr_by_full_addr(self, address, _addresses):
         full_addr = "{addr1} {addr2} {addr3}".format(
-            addr1=address.get("addr1").strip()
-            if address.get("addr1") is not None
-            else "",
-            addr2=address.get("addr2").strip()
-            if address.get("addr2") is not None
-            else "",
-            addr3=address.get("addr3").strip()
-            if address.get("addr3") is not None
-            else "",
+            addr1=(
+                address.get("addr1").strip() if address.get("addr1") is not None else ""
+            ),
+            addr2=(
+                address.get("addr2").strip() if address.get("addr2") is not None else ""
+            ),
+            addr3=(
+                address.get("addr3").strip() if address.get("addr3") is not None else ""
+            ),
         ).strip()
 
         elements = [
@@ -917,16 +920,18 @@ class SOAPConnector(object):
         RecordRef = self.get_data_type("ns0:RecordRef")
         entity = list(
             map(
-                lambda key: {
-                    key: RecordRef(
-                        internalId=self.get_select_value_id(
-                            entity[key], key, record_type=record_type
-                        )
-                    ),
-                }
-                if key
-                in self.setting["NETSUITEMAPPINGS"]["lookup_select_values"].keys()
-                else {key: entity[key]},
+                lambda key: (
+                    {
+                        key: RecordRef(
+                            internalId=self.get_select_value_id(
+                                entity[key], key, record_type=record_type
+                            )
+                        ),
+                    }
+                    if key
+                    in self.setting["NETSUITEMAPPINGS"]["lookup_select_values"].keys()
+                    else {key: entity[key]}
+                ),
                 entity.keys(),
             )
         )
@@ -965,12 +970,22 @@ class SOAPConnector(object):
 
             task_contacts = list(
                 map(
-                    lambda contact_customer: TaskContact(
-                        **{"company": RecordRef(internalId=contact_customer.internalId)}
-                    )
-                    if contact_customer.isPerson == False
-                    else TaskContact(
-                        **{"contact": RecordRef(internalId=contact_customer.internalId)}
+                    lambda contact_customer: (
+                        TaskContact(
+                            **{
+                                "company": RecordRef(
+                                    internalId=contact_customer.internalId
+                                )
+                            }
+                        )
+                        if contact_customer.isPerson == False
+                        else TaskContact(
+                            **{
+                                "contact": RecordRef(
+                                    internalId=contact_customer.internalId
+                                )
+                            }
+                        )
                     ),
                     contact_customers,
                 )
@@ -1206,7 +1221,9 @@ class SOAPConnector(object):
 
         # Create a dictionary for customer deposit data
         customer_deposit = {
-            "salesOrder": RecordRef(internalId=_customer_deposit["sales_order_internal_id"]),
+            "salesOrder": RecordRef(
+                internalId=_customer_deposit["sales_order_internal_id"]
+            ),
             "customer": RecordRef(internalId=_customer_deposit["customer_internal_id"]),
             "tranDate": _customer_deposit["tran_date"],
             "subsidiary": _customer_deposit["subsidiary"],
@@ -1272,6 +1289,7 @@ class SOAPConnector(object):
         self.logger.info(transaction)
         payment_method = transaction.get("paymentMethod")
         notes = transaction.get("notes")
+        files = transaction.get("files", [])
 
         # Get/Create the customer
         ext_customer_id = transaction.pop("extCustomerId", None)
@@ -1319,9 +1337,11 @@ class SOAPConnector(object):
             billingAddress = self.get_address(
                 transaction.get("billingAddress"),
                 addresses=customer.addressbookList.addressbook,
-                default="billing"
-                if self.setting.get("DEFAULT_TRANSACTION_BILLING", False)
-                else None,
+                default=(
+                    "billing"
+                    if self.setting.get("DEFAULT_TRANSACTION_BILLING", False)
+                    else None
+                ),
             )
             transaction.update({"billingAddress": billingAddress})
 
@@ -1330,9 +1350,11 @@ class SOAPConnector(object):
             shippingAddress = self.get_address(
                 transaction.get("shippingAddress"),
                 addresses=customer.addressbookList.addressbook,
-                default="shipping"
-                if self.setting.get("DEFAULT_TRANSACTION_SHIPPING", False)
-                else None,
+                default=(
+                    "shipping"
+                    if self.setting.get("DEFAULT_TRANSACTION_SHIPPING", False)
+                    else None
+                ),
             )
             transaction.update({"shippingAddress": shippingAddress})
 
@@ -1400,7 +1422,6 @@ class SOAPConnector(object):
             record_type,
             **{record_lookup["field"]: record_lookup_value},
         )
-
         if record:
             ## Only if the transaction status is in the update statuses list, then update the record.
             ## Or if the record type of the transaction is not in the transaction_update_statuses's key list then update the record.
@@ -1422,8 +1443,8 @@ class SOAPConnector(object):
                     transaction.update({"internalId": record.internalId})
                     self.update(Transaction(**transaction))
 
-            ## Add notes.
-            self.insert_transaction_notes(notes, record.internalId)
+                ## Add notes.
+                self.insert_transaction_notes(notes, record.internalId)
             return record.tranId
 
         ## Insert the transaction if the record is not found.
@@ -1437,9 +1458,11 @@ class SOAPConnector(object):
             customer_deposit = {
                 "sales_order_internal_id": record.internalId,
                 "customer_internal_id": customer.internalId,
-                "tran_date": transaction["tranDate"]
-                if transaction.get("tranDate")
-                else current + timedelta(hours=24),
+                "tran_date": (
+                    transaction["tranDate"]
+                    if transaction.get("tranDate")
+                    else current + timedelta(hours=24)
+                ),
                 "subsidiary": transaction["subsidiary"],
                 "payment_method": transaction["paymentMethod"],
                 "custom_form": "Standard Customer Deposit",
@@ -1450,9 +1473,11 @@ class SOAPConnector(object):
                 "cc_approved": True,
             }
             self.insert_customer_deposit(**customer_deposit)
-
         ## Add notes.
         self.insert_transaction_notes(notes, record.internalId)
+        ## Add files.
+        if len(files) > 0:
+            self.insert_transaction_files(files, record.internalId, record_type)
         return record.tranId
 
     def get_contact_roles_list(self, contacts, company_internal_id=None):
@@ -1569,6 +1594,12 @@ class SOAPConnector(object):
                 **{"id": person.pop("companyInternalId")},
             )
             person.update({"company": RecordRef(internalId=record.internalId)})
+        elif person.get("companyEntityId"):
+            record = self.get_record_by_variables(
+                "customer",
+                **{"entityId": person.pop("companyEntityId")},
+            )
+            person.update({"company": RecordRef(internalId=record.internalId)})
 
         # Lookup categories.
         if person.get("categories"):
@@ -1629,9 +1660,11 @@ class SOAPConnector(object):
             item,
             **{
                 "itemId": item.pop("itemId"),
-                "upcCode": "{:12}".format(int(eval(item.get("upcCode"))))
-                if item.get("upcCode")
-                else None,
+                "upcCode": (
+                    "{:12}".format(int(eval(item.get("upcCode"))))
+                    if item.get("upcCode")
+                    else None
+                ),
                 "mpn": item.get("mpn", ""),
                 "weight": item.get("weight", 0.1),
                 "weightUnit": item.get("weightUnit", "lb"),
@@ -2424,6 +2457,13 @@ class SOAPConnector(object):
                         f"{idx}) Failed {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
                     )
 
+            ## add Notes
+            try:
+                transaction.noteList = self.get_transaction_notes(transaction.internalId, record_type)
+            except:
+                self.logger.exception(
+                    f"{idx}) Failed {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
+                )
         return
 
     def get_transactions(self, record_type, records, **kwargs):
@@ -2546,6 +2586,72 @@ class SOAPConnector(object):
             return result["records"]
         return None
 
+    ## Insert transaction files.
+    ##
+    ## @param files: The transaction notes.
+    def insert_transaction_files(self, files, internal_id, record_type):
+        if len(files) == 0:
+            return
+
+        # Import necessary data types
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        File = self.get_data_type("ns11:File")
+
+        for file in files:
+            if file["content"] is None or file["content"] == "":
+                continue
+
+            ns_file = self.add(
+                File(
+                    name=file["name"],
+                    attachFrom="_web",
+                    content=file["content"],
+                    folder=RecordRef(internalId=file["folder_internal_id"]),
+                    isOnline=True
+                )
+            )
+            self.attach_record(ns_file.internalId, "file", internal_id, record_type)
+    
+    def attach_record(self, attach_internal_id, attach_type, attach_to_internal_id, attach_to_type):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        AttachReference = self.get_data_type("ns0:AttachBasicReference")
+        result = self.attach(
+            AttachReference(
+                attachTo=RecordRef(internalId=attach_to_internal_id, type=attach_to_type),
+                attachedRecord=RecordRef(internalId=attach_internal_id, type=attach_type)
+            )
+        )
+        return result
+    
+    def get_transaction_notes(self, internal_id, record_type):
+        NoteSearch = self.get_data_type("ns9:NoteSearch")
+        TransactionSearchBasic = self.get_data_type("ns5:TransactionSearchBasic")
+        SearchEnumMultiSelectField = self.get_data_type(
+            "ns0:SearchEnumMultiSelectField"
+        )
+        # transactionJoin
+        SearchPreferences = self.get_data_type("ns4:SearchPreferences")
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
+        transactionSearch = TransactionSearchBasic(
+            type=SearchEnumMultiSelectField(
+                searchValue=[record_type], operator="anyOf"
+            ),
+            internalId=SearchMultiSelectField(
+                searchValue=[RecordRef(internalId=internal_id)],
+                operator="anyOf",
+            ),
+        )
+        search_record = NoteSearch(
+            transactionJoin=transactionSearch
+        )
+        search_preferences = SearchPreferences(bodyFieldsOnly=False)
+        result = self.search(search_record, search_preferences=search_preferences)
+        assert result["total_pages"] <= 1, "More than one page!!!"
+        if result["total_records"] > 0:
+            return result["records"]
+        return None
+    
     def advance_search(self, entity_type, saved_search_id, **kwargs):
         if kwargs.get("search_id") and kwargs.get("page_index"):
             return self.search_more_with_id(
