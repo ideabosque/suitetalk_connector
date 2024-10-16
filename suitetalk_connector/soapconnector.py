@@ -4,12 +4,17 @@ from __future__ import print_function
 
 __author__ = "bibow"
 
-import re, asyncio, time, math
+import asyncio
 import concurrent.futures
+import math
+import re
+import time
 from datetime import datetime, timedelta
-from pytz import timezone
-from .soapadaptor import SOAPAdaptor
 from functools import reduce
+
+from pytz import timezone
+
+from .soapadaptor import SOAPAdaptor
 
 datetime_format = "%m/%d/%Y %H:%M:%S"
 datetime_format_regex = re.compile(r"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}$")
@@ -195,7 +200,7 @@ class SOAPConnector(object):
 
     def attach(self, attach_reference):
         return self.soap_adaptor.attach(attach_reference)
-    
+
     def get_select_values(self, record_type, field, sublist=None):
         return self.soap_adaptor.get_select_values(record_type, field, sublist=sublist)
 
@@ -1043,6 +1048,81 @@ class SOAPConnector(object):
         record = self.add(Task(**task))
         return record.internalId
 
+    def get_bin(self, bin_number, location_internalId):
+        SearchPreferences = self.get_data_type("ns4:SearchPreferences")
+        RecordSearchBasic = self.get_data_type("ns5:BinSearchBasic")
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        SearchStringField = self.get_data_type("ns0:SearchStringField")
+        SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
+
+        search_preferences = SearchPreferences(bodyFieldsOnly=False)
+        search_record = RecordSearchBasic(
+            binNumber=SearchStringField(searchValue=bin_number, operator="is"),
+            location=SearchMultiSelectField(
+                searchValue=[RecordRef(internalId=location_internalId)],
+                operator="anyOf",
+            ),
+        )
+
+        result = self.search(search_record, search_preferences=search_preferences)
+        if result["total_records"] > 0:
+            return result["records"][-1]
+        return None
+
+    def get_inventory_number_for_deduction(
+        self, item, lot_no_loc, location_internalId=None
+    ):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        InventoryAssignment = self.get_data_type("ns5:InventoryAssignment")
+        records = self.get_inventory_numbers(**{"item_internal_id": item.internalId})
+        if records is None:
+            return None
+
+        _records = list(
+            filter(
+                lambda x: x["status"] == "Available"
+                and x["inventoryNumber"] == lot_no_loc["lot_no"],
+                records,
+            )
+        )
+        if len(_records) == 0:
+            return None
+
+        inventory_number = _records[-1]
+        inventory_assignment = InventoryAssignment(
+            issueInventoryNumber=RecordRef(internalId=inventory_number.internalId),
+            quantity=lot_no_loc["deduct_qty"],
+        )
+
+        if lot_no_loc.get("bin_number") and location_internalId:
+            bin = self.get_bin(lot_no_loc.get("bin_number"), location_internalId)
+
+            if bin is not None:
+                inventory_assignment.binNumber = RecordRef(internalId=bin.internalId)
+
+        return inventory_assignment
+
+    def get_inventory_number_for_adjustment(
+        self, item, lot_no_loc, location_internalId=None
+    ):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        InventoryAssignment = self.get_data_type("ns5:InventoryAssignment")
+        records = self.get_inventory_numbers(**{"item_internal_id": item.internalId})
+        if records is None:
+            return None
+
+        inventory_assignment = InventoryAssignment(
+            receiptInventoryNumber=lot_no_loc["lot_no"],
+            quantity=lot_no_loc["adjust_qty"],
+        )
+        if lot_no_loc.get("bin_number") and location_internalId:
+            bin = self.get_bin(lot_no_loc.get("bin_number"), location_internalId)
+
+            if bin is not None:
+                inventory_assignment.binNumber = RecordRef(internalId=bin.internalId)
+
+        return inventory_assignment
+
     ## Get transaction items.
     ##
     ## @param record_type: The record type.
@@ -1060,7 +1140,6 @@ class SOAPConnector(object):
         )
         InventoryDetail = self.get_data_type("ns5:InventoryDetail")
         InventoryAssignmentList = self.get_data_type("ns5:InventoryAssignmentList")
-        InventoryAssignment = self.get_data_type("ns5:InventoryAssignment")
 
         # Initialize variables
         message = None
@@ -1162,29 +1241,34 @@ class SOAPConnector(object):
                 if lot_no_locs:
                     inventory_assignments = []
                     for lot_no_loc in lot_no_locs:
-                        records = self.get_inventory_numbers(
-                            **{"item_internal_id": item.internalId}
-                        )
-                        if records is None:
-                            continue
-
-                        _records = list(
-                            filter(
-                                lambda x: x["status"] == "Available"
-                                and x["inventoryNumber"] == lot_no_loc["lot_no"],
-                                records,
+                        inventory_assignment = None
+                        if record_type in ["salesOrder", "itemFulfillment"]:
+                            inventory_assignment = (
+                                self.get_inventory_number_for_deduction(
+                                    item,
+                                    lot_no_loc,
+                                    location_internalId=(
+                                        transaction_item.location.internalId
+                                        if _item.get("location")
+                                        else None
+                                    ),
+                                )
                             )
-                        )
-                        if len(_records) == 0:
-                            continue
+                        elif record_type in ["purchaseOrder", "itemReceipt"]:
+                            inventory_assignment = (
+                                self.get_inventory_number_for_adjustment(
+                                    item,
+                                    lot_no_loc,
+                                    location_internalId=(
+                                        transaction_item.location.internalId
+                                        if _item.get("location")
+                                        else None
+                                    ),
+                                )
+                            )
 
-                        inventory_number = _records[-1]
-                        inventory_assignment = InventoryAssignment(
-                            issueInventoryNumber=RecordRef(
-                                internalId=inventory_number.internalId
-                            ),
-                            quantity=lot_no_loc["deduct_qty"],
-                        )
+                        if inventory_assignment is None:
+                            continue
                         inventory_assignments.append(inventory_assignment)
 
                     if len(inventory_assignments) > 0:
@@ -1192,11 +1276,15 @@ class SOAPConnector(object):
                             inventoryAssignmentList=InventoryAssignmentList(
                                 inventoryAssignment=inventory_assignments,
                                 replaceAll=True,
-                            )
+                            ),
                         )
 
                 if status == "Closed" and record_type in ["salesOrder"]:
                     transaction_item.isClosed = True
+
+                if record_type in ["itemReceipt", "itemFulfillment"]:
+                    transaction_item.itemReceive = True if float(qty) > 0 else False
+                    transaction_item.orderLine = _item["order_line"]
 
                 transaction_items.append(transaction_item)
                 self.logger.info(f"The item ({sku}/{item.internalId}) is added.")
@@ -1278,6 +1366,7 @@ class SOAPConnector(object):
             self.transaction_item_list_data_type.get(record_type)
         )
         SalesOrderOrderStatus = self.get_data_type("ns20:SalesOrderOrderStatus")
+        ItemFulfillmentShipStatus = self.get_data_type("ns20:ItemFulfillmentShipStatus")
         Transaction = self.get_data_type(self.transaction_data_type.get(record_type))
 
         # Access the attributes of the type
@@ -1290,12 +1379,6 @@ class SOAPConnector(object):
         payment_method = transaction.get("paymentMethod")
         notes = transaction.get("notes")
         files = transaction.get("files", [])
-
-        # Get/Create the customer
-        ext_customer_id = transaction.pop("extCustomerId", None)
-        ns_customer_id = transaction.pop("nsCustomerId", None)
-        customer = self.get_customer(ext_customer_id, ns_customer_id, transaction)
-        transaction.update({"entity": RecordRef(internalId=customer.internalId)})
 
         # Get lookup select values
         transaction = dict(
@@ -1310,13 +1393,35 @@ class SOAPConnector(object):
             ),
         )
 
-        # Replace the term with the customer term
-        if (
-            customer.terms
-            and transaction.get("terms") is None
-            and record_type in ["salesOrder", "estimate"]
-        ):
-            transaction.update({"terms": customer.terms})
+        # Get/Create the customer
+        if record_type in [
+            "salesOrder",
+            "estimate",
+            "opportunity",
+            "returnAuthorization",
+        ]:
+            ext_customer_id = transaction.pop("extCustomerId", None)
+            ns_customer_id = transaction.pop("nsCustomerId", None)
+            customer = self.get_customer(ext_customer_id, ns_customer_id, transaction)
+            transaction.update({"entity": RecordRef(internalId=customer.internalId)})
+
+            # Replace the term with the customer term
+            if (
+                customer.terms
+                and transaction.get("terms") is None
+                and record_type in ["salesOrder", "estimate"]
+            ):
+                transaction.update({"terms": customer.terms})
+
+        if record_type in ["itemReceipt", "purchaseOrder"]:
+            ns_vendor_id = transaction.pop("nsVendorId", None)
+            vendor = self.get_record_by_variables(
+                "vendor",
+                **{
+                    self.lookup_record_fields["vendor"]["field"]: ns_vendor_id,
+                },
+            )
+            transaction.update({"entity": RecordRef(internalId=vendor.internalId)})
 
         # Get tranaction items
         transaction_items, message = self.get_transaction_items(
@@ -1329,7 +1434,16 @@ class SOAPConnector(object):
         if message:
             transaction.update({"message": message})
         transaction.update(
-            {"itemList": TransactionItemList(item=transaction_items, replaceAll=True)}
+            {
+                "itemList": TransactionItemList(
+                    item=transaction_items,
+                    replaceAll=(
+                        False
+                        if record_type in ["itemReceipt", "itemFulfillment"]
+                        else True
+                    ),
+                )
+            }
         )
 
         # Billing Address
@@ -1380,29 +1494,44 @@ class SOAPConnector(object):
             transaction.update(
                 {"orderStatus": SalesOrderOrderStatus(transaction.get("orderStatus"))}
             )
+        if transaction.get("shipStatus"):
+            transaction.update(
+                {"shipStatus": ItemFulfillmentShipStatus(transaction.get("shipStatus"))}
+            )
 
         # Created From
+        created_from_record = None
+        lookup_join_fields = self.lookup_join_fields.get(record_type)
+        created_from_record_lookup = self.lookup_record_fields.get(
+            lookup_join_fields["created_from_lookup_type"]
+        )
         if transaction.get("createdFrom"):
-            lookup_join_fields = self.lookup_join_fields.get(record_type)
-            created_from_record_lookup = self.lookup_record_fields.get(
-                lookup_join_fields["created_from_lookup_type"]
-            )
             created_from_record = self.get_record_by_variables(
                 lookup_join_fields["created_from_lookup_type"],
-                **{created_from_record_lookup["field"]: transaction["createdFrom"]},
+                **{
+                    created_from_record_lookup["field"]: transaction["createdFrom"],
+                },
             )
-            if created_from_record:
-                transaction.update(
-                    {
-                        "createdFrom": RecordRef(
-                            internalId=created_from_record.internalId,
-                            type=lookup_join_fields["created_from_lookup_type"],
-                        )
-                    }
-                )
+        if transaction.get("createdFromInternalId"):
+            created_from_record = self.get_record_by_variables(
+                lookup_join_fields["created_from_lookup_type"],
+                **{
+                    "id": transaction["createdFromInternalId"],
+                },
+            )
+
+        if created_from_record:
+            transaction.update(
+                {
+                    "createdFrom": RecordRef(
+                        internalId=created_from_record.internalId,
+                        type=lookup_join_fields["created_from_lookup_type"],
+                    )
+                }
+            )
 
         # Order Custom Fields
-        _custom_fields = transaction.pop("customFields")
+        _custom_fields = transaction.pop("customFields", {})
         custom_fields = self.get_custom_fields(record_type, _custom_fields)
         if len(custom_fields) != 0:
             transaction.update(
@@ -1418,10 +1547,13 @@ class SOAPConnector(object):
         record_lookup_value = transaction.get(record_lookup["field"])
         if record_lookup_value is None:
             record_lookup_value = _custom_fields.get(record_lookup["field"])
-        record = self.get_record_by_variables(
-            record_type,
-            **{record_lookup["field"]: record_lookup_value},
-        )
+
+        record = None
+        if record_lookup_value is not None:
+            record = self.get_record_by_variables(
+                record_type,
+                **{record_lookup["field"]: record_lookup_value},
+            )
         if record:
             ## Only if the transaction status is in the update statuses list, then update the record.
             ## Or if the record type of the transaction is not in the transaction_update_statuses's key list then update the record.
@@ -2459,7 +2591,9 @@ class SOAPConnector(object):
 
             ## add Notes
             try:
-                transaction.noteList = self.get_transaction_notes(transaction.internalId, record_type)
+                transaction.noteList = self.get_transaction_notes(
+                    transaction.internalId, record_type
+                )
             except:
                 self.logger.exception(
                     f"{idx}) Failed {entity_type} join field for {transaction.internalId} at {time.strftime('%X')}."
@@ -2607,22 +2741,28 @@ class SOAPConnector(object):
                     attachFrom="_web",
                     content=file["content"],
                     folder=RecordRef(internalId=file["folder_internal_id"]),
-                    isOnline=True
+                    isOnline=True,
                 )
             )
             self.attach_record(ns_file.internalId, "file", internal_id, record_type)
-    
-    def attach_record(self, attach_internal_id, attach_type, attach_to_internal_id, attach_to_type):
+
+    def attach_record(
+        self, attach_internal_id, attach_type, attach_to_internal_id, attach_to_type
+    ):
         RecordRef = self.get_data_type("ns0:RecordRef")
         AttachReference = self.get_data_type("ns0:AttachBasicReference")
         result = self.attach(
             AttachReference(
-                attachTo=RecordRef(internalId=attach_to_internal_id, type=attach_to_type),
-                attachedRecord=RecordRef(internalId=attach_internal_id, type=attach_type)
+                attachTo=RecordRef(
+                    internalId=attach_to_internal_id, type=attach_to_type
+                ),
+                attachedRecord=RecordRef(
+                    internalId=attach_internal_id, type=attach_type
+                ),
             )
         )
         return result
-    
+
     def get_transaction_notes(self, internal_id, record_type):
         NoteSearch = self.get_data_type("ns9:NoteSearch")
         TransactionSearchBasic = self.get_data_type("ns5:TransactionSearchBasic")
@@ -2642,16 +2782,14 @@ class SOAPConnector(object):
                 operator="anyOf",
             ),
         )
-        search_record = NoteSearch(
-            transactionJoin=transactionSearch
-        )
+        search_record = NoteSearch(transactionJoin=transactionSearch)
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
         result = self.search(search_record, search_preferences=search_preferences)
         assert result["total_pages"] <= 1, "More than one page!!!"
         if result["total_records"] > 0:
             return result["records"]
         return None
-    
+
     def advance_search(self, entity_type, saved_search_id, **kwargs):
         if kwargs.get("search_id") and kwargs.get("page_index"):
             return self.search_more_with_id(
