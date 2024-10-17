@@ -1295,6 +1295,20 @@ class SOAPConnector(object):
 
         return transaction_items, message
 
+    def get_itemfulfillment_packages(self, packages):
+        ItemFulfillmentPackage = self.get_data_type("ns19:ItemFulfillmentPackage")
+
+        itemfulfillment_packages = []
+        for package in packages:
+            itemfulfillment_package = ItemFulfillmentPackage(
+                packageDescr=package.get("package_description"),
+                packageTrackingNumber=package.get("package_tracking_number"),
+                packageWeight=package.get("package_weight"),
+            )
+            itemfulfillment_packages.append(itemfulfillment_package)
+
+        return itemfulfillment_packages
+
     ## Insert a customer deposit.
     ##
     ## @param kwargs: The customer deposit.
@@ -1365,6 +1379,9 @@ class SOAPConnector(object):
         TransactionItemList = self.get_data_type(
             self.transaction_item_list_data_type.get(record_type)
         )
+        ItemFulfillmentPackageList = self.get_data_type(
+            "ns19:ItemFulfillmentPackageList"
+        )
         SalesOrderOrderStatus = self.get_data_type("ns20:SalesOrderOrderStatus")
         ItemFulfillmentShipStatus = self.get_data_type("ns20:ItemFulfillmentShipStatus")
         Transaction = self.get_data_type(self.transaction_data_type.get(record_type))
@@ -1413,7 +1430,7 @@ class SOAPConnector(object):
             ):
                 transaction.update({"terms": customer.terms})
 
-        if record_type in ["itemReceipt", "purchaseOrder"]:
+        if record_type in ["purchaseOrder"]:
             ns_vendor_id = transaction.pop("nsVendorId", None)
             vendor = self.get_record_by_variables(
                 "vendor",
@@ -1445,6 +1462,20 @@ class SOAPConnector(object):
                 )
             }
         )
+
+        # get transaction packges.
+        if record_type == "itemFulfillment" and transaction.get("packages"):
+            itemfulfillment_packages = self.get_itemfulfillment_packages(
+                transaction.pop("packages")
+            )
+            transaction.update(
+                {
+                    "packageList": ItemFulfillmentPackageList(
+                        package=itemfulfillment_packages,
+                        replaceAll=True,
+                    )
+                }
+            )
 
         # Billing Address
         if transaction.get("billingAddress"):
