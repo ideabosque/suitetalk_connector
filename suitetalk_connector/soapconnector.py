@@ -1532,18 +1532,20 @@ class SOAPConnector(object):
 
         # Created From
         created_from_record = None
-        lookup_join_fields = self.lookup_join_fields.get(record_type)
-        created_from_record_lookup = self.lookup_record_fields.get(
-            lookup_join_fields["created_from_lookup_type"]
-        )
-        if transaction.get("createdFrom"):
+        created_from_record_lookup = None
+        lookup_join_fields = self.lookup_join_fields.get(record_type, {})
+        if lookup_join_fields.get("created_from_lookup_type", None):
+            created_from_record_lookup = self.lookup_record_fields.get(
+                lookup_join_fields["created_from_lookup_type"]
+            )
+        if transaction.get("createdFrom") and created_from_record_lookup is not None:
             created_from_record = self.get_record_by_variables(
                 lookup_join_fields["created_from_lookup_type"],
                 **{
                     created_from_record_lookup["field"]: transaction["createdFrom"],
                 },
             )
-        if transaction.get("createdFromInternalId"):
+        if transaction.get("createdFromInternalId") and lookup_join_fields.get("created_from_lookup_type", None):
             created_from_record = self.get_record_by_variables(
                 lookup_join_fields["created_from_lookup_type"],
                 **{
