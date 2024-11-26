@@ -263,6 +263,15 @@ class SOAPConnector(object):
                 return record.internalId
             return None
 
+        if record_type == "salesOrder" and field == "tranId":
+            record = self.get_record_by_variables(
+                record_type,
+                **{field: value},
+            )
+            if record:
+                return record.internalId
+            return None
+
         if record_type in self.lookup_record_fields.keys():
             record_lookup = self.lookup_record_fields.get(record_type)
             if field == record_lookup["field"]:
