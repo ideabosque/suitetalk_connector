@@ -272,6 +272,14 @@ class SOAPConnector(object):
                 if record:
                     return record.internalId
                 return None
+            else :
+                record = self.get_record_by_variables(
+                    record_type,
+                    **{field: value},
+                )
+                if record:
+                    return record.internalId
+                return None
             raise Exception(
                 f"{field} is not match with the configuration ({record_lookup['field']}) of the record_look!!!"
             )
