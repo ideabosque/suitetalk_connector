@@ -2930,3 +2930,21 @@ class SOAPConnector(object):
             get_deleted_filter=get_deleted_filter,
             page_index=page_index,
         )
+
+    @search_result_decorator()
+    def get_file_result_by_folder(self, folder_internal_id, **kwargs):
+        if kwargs.get("search_id") and kwargs.get("page_index"):
+            return self.search_more_with_id(
+                kwargs.get("search_id"), kwargs.get("page_index")
+            )
+        SearchPreferences = self.get_data_type("ns4:SearchPreferences")
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        FileSearch = self.get_data_type("ns11:FileSearch")
+        FileSearchBasic = self.get_data_type("ns5:FileSearchBasic")
+        SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
+        search_record_basic = FileSearchBasic(
+            folder=SearchMultiSelectField(searchValue=[RecordRef(internalId=folder_internal_id)], operator="anyOf")
+        )
+        search_record = FileSearch(basic=search_record_basic)
+        search_preferences = SearchPreferences(bodyFieldsOnly=False)
+        return self.search(search_record, search_preferences=search_preferences)
