@@ -11,6 +11,7 @@ import re
 import time
 from datetime import datetime, timedelta
 from functools import reduce
+from decimal import Decimal
 
 from pytz import timezone
 
@@ -1521,7 +1522,7 @@ class SOAPConnector(object):
                 }
             )
         
-        if transaction.get("tranDate") is not None and isinstance(transaction.get("tranDate"), (int, float)):
+        if transaction.get("tranDate") is not None and isinstance(transaction.get("tranDate"), (int, float, Decimal)):
             transaction.update(
                 {
                     "tranDate": current
