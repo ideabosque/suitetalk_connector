@@ -10,8 +10,8 @@ import math
 import re
 import time
 from datetime import datetime, timedelta
-from functools import reduce
 from decimal import Decimal
+from functools import reduce
 
 from pytz import timezone
 
@@ -113,7 +113,7 @@ class SOAPConnector(object):
             return await self.async_worker(funct, entities_slice, **kwargs)
 
         # Create a multiprocessing Pool
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             start_idx = 0
             # Dispatch asynchronous tasks to different processes for each page index
             for i in range(num_segments):
@@ -273,7 +273,7 @@ class SOAPConnector(object):
                 if record:
                     return record.internalId
                 return None
-            else :
+            else:
                 record = self.get_record_by_variables(
                     record_type,
                     **{field: value},
@@ -1521,8 +1521,10 @@ class SOAPConnector(object):
                     + timedelta(hours=float(transaction.get("shipDate")))
                 }
             )
-        
-        if transaction.get("tranDate") is not None and isinstance(transaction.get("tranDate"), (int, float, Decimal)):
+
+        if transaction.get("tranDate") is not None and isinstance(
+            transaction.get("tranDate"), (int, float, Decimal)
+        ):
             transaction.update(
                 {
                     "tranDate": current
@@ -2945,7 +2947,9 @@ class SOAPConnector(object):
         FileSearchBasic = self.get_data_type("ns5:FileSearchBasic")
         SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
         search_record_basic = FileSearchBasic(
-            folder=SearchMultiSelectField(searchValue=[RecordRef(internalId=folder_internal_id)], operator="anyOf")
+            folder=SearchMultiSelectField(
+                searchValue=[RecordRef(internalId=folder_internal_id)], operator="anyOf"
+            )
         )
         search_record = FileSearch(basic=search_record_basic)
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
