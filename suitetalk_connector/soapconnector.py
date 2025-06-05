@@ -11,6 +11,7 @@ import re
 import time
 from datetime import datetime, timedelta
 from functools import reduce
+from decimal import Decimal
 
 from pytz import timezone
 
@@ -268,6 +269,14 @@ class SOAPConnector(object):
             if field == record_lookup["field"]:
                 record = self.get_record_by_lookup(
                     record_type, record_lookup["search_data_type"], field, value
+                )
+                if record:
+                    return record.internalId
+                return None
+            else :
+                record = self.get_record_by_variables(
+                    record_type,
+                    **{field: value},
                 )
                 if record:
                     return record.internalId
@@ -1512,8 +1521,8 @@ class SOAPConnector(object):
                     + timedelta(hours=float(transaction.get("shipDate")))
                 }
             )
-
-        if transaction.get("tranDate") is not None:
+        
+        if transaction.get("tranDate") is not None and isinstance(transaction.get("tranDate"), (int, float, Decimal)):
             transaction.update(
                 {
                     "tranDate": current
@@ -1613,7 +1622,6 @@ class SOAPConnector(object):
                 ## Add notes.
                 self.insert_transaction_notes(notes, record.internalId)
             return record.tranId
-
         ## Insert the transaction if the record is not found.
         record = self.add(Transaction(**transaction))
         record = self.get_record(record_type, record.internalId)
@@ -2924,3 +2932,21 @@ class SOAPConnector(object):
             get_deleted_filter=get_deleted_filter,
             page_index=page_index,
         )
+
+    @search_result_decorator()
+    def get_file_result_by_folder(self, folder_internal_id, **kwargs):
+        if kwargs.get("search_id") and kwargs.get("page_index"):
+            return self.search_more_with_id(
+                kwargs.get("search_id"), kwargs.get("page_index")
+            )
+        SearchPreferences = self.get_data_type("ns4:SearchPreferences")
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        FileSearch = self.get_data_type("ns11:FileSearch")
+        FileSearchBasic = self.get_data_type("ns5:FileSearchBasic")
+        SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
+        search_record_basic = FileSearchBasic(
+            folder=SearchMultiSelectField(searchValue=[RecordRef(internalId=folder_internal_id)], operator="anyOf")
+        )
+        search_record = FileSearch(basic=search_record_basic)
+        search_preferences = SearchPreferences(bodyFieldsOnly=False)
+        return self.search(search_record, search_preferences=search_preferences)
