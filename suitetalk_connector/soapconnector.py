@@ -113,7 +113,7 @@ class SOAPConnector(object):
             return await self.async_worker(funct, entities_slice, **kwargs)
 
         # Create a multiprocessing Pool
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             start_idx = 0
             # Dispatch asynchronous tasks to different processes for each page index
             for i in range(num_segments):
@@ -1554,7 +1554,9 @@ class SOAPConnector(object):
                     created_from_record_lookup["field"]: transaction["createdFrom"],
                 },
             )
-        if transaction.get("createdFromInternalId") and lookup_join_fields.get("created_from_lookup_type", None):
+        if transaction.get("createdFromInternalId") and lookup_join_fields.get(
+            "created_from_lookup_type", None
+        ):
             created_from_record = self.get_record_by_variables(
                 lookup_join_fields["created_from_lookup_type"],
                 **{
