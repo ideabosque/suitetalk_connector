@@ -113,7 +113,7 @@ class SOAPConnector(object):
             return await self.async_worker(funct, entities_slice, **kwargs)
 
         # Create a multiprocessing Pool
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             start_idx = 0
             # Dispatch asynchronous tasks to different processes for each page index
             for i in range(num_segments):
