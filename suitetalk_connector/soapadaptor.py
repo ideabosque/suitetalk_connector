@@ -4,12 +4,16 @@ from __future__ import print_function
 
 __author__ = "bibow"
 
-import base64, hmac, hashlib, random, time
-from tenacity import retry, wait_exponential, stop_after_attempt
+import base64
+import hashlib
+import hmac
+import random
+import time
 
+from tenacity import retry, stop_after_attempt, wait_exponential
 from zeep import Client
-from zeep.transports import Transport
 from zeep.settings import Settings
+from zeep.transports import Transport
 
 
 class SOAPAdaptor(object):
@@ -101,7 +105,7 @@ class SOAPAdaptor(object):
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def get(self, baseRef=None):
         soapheaders = {
@@ -118,7 +122,7 @@ class SOAPAdaptor(object):
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def delete(self, baseRef=None):
         soapheaders = {
@@ -135,7 +139,7 @@ class SOAPAdaptor(object):
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def add(self, record=None):
         soapheaders = {
@@ -155,14 +159,16 @@ class SOAPAdaptor(object):
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def attach(self, attach_reference=None):
         soapheaders = {
             "tokenPassport": self.token_passport,
             "applicationInfo": self.application_info,
         }
-        response = self.service.attach(attachReference=attach_reference, _soapheaders=soapheaders)
+        response = self.service.attach(
+            attachReference=attach_reference, _soapheaders=soapheaders
+        )
         write_response = response["body"]["writeResponse"]
         is_success = write_response["status"]["isSuccess"]
 
@@ -171,11 +177,11 @@ class SOAPAdaptor(object):
 
         updated_record = write_response["baseRef"]
         return updated_record
-    
+
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def update(self, record=None):
         soapheaders = {
@@ -196,7 +202,7 @@ class SOAPAdaptor(object):
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def upsert(self, record=None):
         soapheaders = {
@@ -231,22 +237,24 @@ class SOAPAdaptor(object):
             "total_pages": total_pages,
             "page_index": page_index,
             "records": (
-                search_result["searchRowList"]["searchRow"]
-                if search_result["searchRowList"]
-                else []
-            )
-            if advance
-            else (
-                search_result["recordList"]["record"]
-                if search_result["recordList"]
-                else []
+                (
+                    search_result["searchRowList"]["searchRow"]
+                    if search_result["searchRowList"]
+                    else []
+                )
+                if advance
+                else (
+                    search_result["recordList"]["record"]
+                    if search_result["recordList"]
+                    else []
+                )
             ),
         }
 
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def search(self, search_record, search_preferences=None, advance=False):
         soapheaders = {
@@ -267,7 +275,7 @@ class SOAPAdaptor(object):
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def search_more_with_id(self, search_id, page_index, advance=False):
         soapheaders = {
@@ -285,7 +293,7 @@ class SOAPAdaptor(object):
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def async_search(self, search_record, search_preferences=None):
         soapheaders = {
@@ -312,7 +320,7 @@ class SOAPAdaptor(object):
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def check_async_status(self, job_id):
         soapheaders = {
@@ -333,7 +341,7 @@ class SOAPAdaptor(object):
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def get_async_result(self, job_id, page_index, advance=False):
         soapheaders = {
@@ -352,7 +360,7 @@ class SOAPAdaptor(object):
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def get_select_value(self, get_select_value_field_description=None):
         soapheaders = {
@@ -405,7 +413,7 @@ class SOAPAdaptor(object):
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def get_data_center_urls(self):
         soapheaders = {
@@ -420,7 +428,7 @@ class SOAPAdaptor(object):
     @retry(
         reraise=True,
         wait=wait_exponential(multiplier=1, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(1),
     )
     def get_deleted(self, get_deleted_filter=None, page_index=1, preferences=None):
         soapheaders = {
