@@ -1759,10 +1759,11 @@ class SOAPConnector(object):
                 )
             )
             addressbook.append(personAddressbook)
-
-        person.update(
-            {"addressbookList": PersonAddressbookList(**{"addressbook": addressbook})}
-        )
+        
+        if len(addressbook) > 0:
+            person.update(
+                {"addressbookList": PersonAddressbookList(**{"addressbook": addressbook})}
+            )
 
         # Lookup compamy.
         if person.get("companyInternalId"):
