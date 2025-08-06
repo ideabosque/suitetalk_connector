@@ -61,6 +61,7 @@ class SOAPConnector(object):
         self.transaction_update_statuses = setting["NETSUITEMAPPINGS"].get(
             "transaction_update_statuses", {}
         )
+        self.max_workers = int(setting.get("MAX_WORKERS", 2))
         self.num_async_tasks = int(setting.get("NUM_ASYNC_TASKS", 10))
         self._soap_adaptor = None
 
@@ -113,7 +114,9 @@ class SOAPConnector(object):
             return await self.async_worker(funct, entities_slice, **kwargs)
 
         # Create a multiprocessing Pool
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=self.max_workers
+        ) as executor:
             start_idx = 0
             # Dispatch asynchronous tasks to different processes for each page index
             for i in range(num_segments):
