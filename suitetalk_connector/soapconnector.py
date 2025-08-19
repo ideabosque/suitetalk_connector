@@ -952,6 +952,10 @@ class SOAPConnector(object):
                 entity.keys(),
             )
         )
+
+        if not entity:
+            return {}
+
         entity = reduce(lambda x, y: dict(x, **y), entity)
         return entity
 
@@ -1135,6 +1139,46 @@ class SOAPConnector(object):
 
         return inventory_assignment
 
+    def get_inventory_number_for_transfer(
+        self, item, lot_no_loc, location_internalId=None
+    ):
+        RecordRef = self.get_data_type("ns0:RecordRef")
+        InventoryAssignment = self.get_data_type("ns5:InventoryAssignment")
+        records = self.get_inventory_numbers(**{"item_internal_id": item.internalId})
+        if records is None:
+            return None
+
+        _records = list(
+            filter(
+                lambda x: x["status"] == "Available"
+                and x["inventoryNumber"] == lot_no_loc["lot_no"],
+                records,
+            )
+        )
+        if len(_records) == 0:
+            return None
+
+        inventory_number = _records[-1]
+        inventory_assignment = InventoryAssignment(
+            issueInventoryNumber=RecordRef(internalId=inventory_number.internalId),
+            quantity=lot_no_loc["transfer_qty"],
+        )
+        if lot_no_loc.get("bin_number") and location_internalId:
+            bin = self.get_bin(lot_no_loc.get("bin_number"), location_internalId)
+
+            if bin is not None:
+                inventory_assignment.binNumber = RecordRef(internalId=bin.internalId)
+
+        if lot_no_loc.get("to_bin_number") and location_internalId:
+            to_bin = self.get_bin(lot_no_loc.get("to_bin_number"), location_internalId)
+
+            if to_bin is not None:
+                inventory_assignment.toBinNumber = RecordRef(
+                    internalId=to_bin.internalId
+                )
+
+        return inventory_assignment
+
     ## Get transaction items.
     ##
     ## @param record_type: The record type.
@@ -1269,6 +1313,18 @@ class SOAPConnector(object):
                         elif record_type in ["purchaseOrder", "itemReceipt"]:
                             inventory_assignment = (
                                 self.get_inventory_number_for_adjustment(
+                                    item,
+                                    lot_no_loc,
+                                    location_internalId=(
+                                        transaction_item.location.internalId
+                                        if _item.get("location")
+                                        else None
+                                    ),
+                                )
+                            )
+                        elif record_type in ["binTransfer"]:
+                            inventory_assignment = (
+                                self.get_inventory_number_for_transfer(
                                     item,
                                     lot_no_loc,
                                     location_internalId=(
@@ -1453,27 +1509,39 @@ class SOAPConnector(object):
             transaction.update({"entity": RecordRef(internalId=vendor.internalId)})
 
         # Get tranaction items
-        transaction_items, message = self.get_transaction_items(
-            record_type,
-            transaction.pop("items"),
-            pricelevel=transaction.pop("priceLevel", None),
-            status=transaction.get("status"),
-        )
+        if transaction.get("items"):
+            transaction_items, message = self.get_transaction_items(
+                record_type,
+                transaction.pop("items"),
+                pricelevel=transaction.pop("priceLevel", None),
+                status=transaction.get("status"),
+            )
 
-        if message:
-            transaction.update({"message": message})
-        transaction.update(
-            {
-                "itemList": TransactionItemList(
-                    item=transaction_items,
-                    replaceAll=(
-                        False
-                        if record_type in ["itemReceipt", "itemFulfillment"]
-                        else True
-                    ),
+            if message:
+                transaction.update({"message": message})
+
+            if record_type in ["binTransfer"]:
+                transaction.update(
+                    {
+                        "inventoryList": TransactionItemList(
+                            inventory=transaction_items,
+                            replaceAll=True,
+                        )
+                    }
                 )
-            }
-        )
+            else:
+                transaction.update(
+                    {
+                        "itemList": TransactionItemList(
+                            item=transaction_items,
+                            replaceAll=(
+                                False
+                                if record_type in ["itemReceipt", "itemFulfillment"]
+                                else True
+                            ),
+                        )
+                    }
+                )
 
         # get transaction packges.
         if record_type == "itemFulfillment" and transaction.get("packages"):
@@ -1762,10 +1830,14 @@ class SOAPConnector(object):
                 )
             )
             addressbook.append(personAddressbook)
-        
+
         if len(addressbook) > 0:
             person.update(
-                {"addressbookList": PersonAddressbookList(**{"addressbook": addressbook})}
+                {
+                    "addressbookList": PersonAddressbookList(
+                        **{"addressbook": addressbook}
+                    )
+                }
             )
 
         # Lookup compamy.
