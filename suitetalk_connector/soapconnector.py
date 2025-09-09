@@ -2016,10 +2016,12 @@ class SOAPConnector(object):
         RecordSearchBasic = self.get_data_type(record_lookup["search_data_type"])
         RecordRef = self.get_data_type("ns0:RecordRef")
         SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
+        SearchCustomFieldList = self.get_data_type("ns0:SearchCustomFieldList")
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
         subsidiary = kwargs.get("subsidiary")
+        custom_fields = kwargs.get("custom_fields")
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
         if kwargs.get("internal_ids"):
@@ -2058,6 +2060,14 @@ class SOAPConnector(object):
             record_ref = RecordRef(internalId=record.internalId)
             search_record.subsidiary = SearchMultiSelectField(
                 searchValue=[record_ref], operator="anyOf"
+            )
+
+        if custom_fields:
+            search_custom_fields = self.get_search_custom_fields(
+                custom_fields, record_type
+            )
+            search_record.customFieldList = SearchCustomFieldList(
+                customField=search_custom_fields
             )
 
         if kwargs.get("async", False):
