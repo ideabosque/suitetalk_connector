@@ -2016,10 +2016,13 @@ class SOAPConnector(object):
         RecordSearchBasic = self.get_data_type(record_lookup["search_data_type"])
         RecordRef = self.get_data_type("ns0:RecordRef")
         SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
+        SearchCustomFieldList = self.get_data_type("ns0:SearchCustomFieldList")
 
         cut_date = kwargs.get("cut_date")
         end_date = kwargs.get("end_date")
         subsidiary = kwargs.get("subsidiary")
+        custom_fields = kwargs.get("custom_fields")
+        use_default_date_field = kwargs.get("use_default_date_field", True)
 
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
         if kwargs.get("internal_ids"):
@@ -2038,12 +2041,15 @@ class SOAPConnector(object):
             begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
             end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
 
-            search_record = RecordSearchBasic(
-                # isInactive=SearchBooleanField(searchValue=False),
-                lastModifiedDate=SearchDateField(
-                    searchValue=begin, searchValue2=end, operator="within"
-                ),
-            )
+            if use_default_date_field:
+                search_record = RecordSearchBasic(
+                    # isInactive=SearchBooleanField(searchValue=False),
+                    lastModifiedDate=SearchDateField(
+                        searchValue=begin, searchValue2=end, operator="within"
+                    ),
+                )
+            else:
+                search_record = RecordSearchBasic()
 
             self.logger.info(f"Begin: {begin.strftime('%Y-%m-%dT%H:%M:%S%z')}")
             self.logger.info(f"End: {end.strftime('%Y-%m-%dT%H:%M:%S%z')}")
@@ -2058,6 +2064,14 @@ class SOAPConnector(object):
             record_ref = RecordRef(internalId=record.internalId)
             search_record.subsidiary = SearchMultiSelectField(
                 searchValue=[record_ref], operator="anyOf"
+            )
+
+        if custom_fields:
+            search_custom_fields = self.get_search_custom_fields(
+                custom_fields, record_type
+            )
+            search_record.customFieldList = SearchCustomFieldList(
+                customField=search_custom_fields
             )
 
         if kwargs.get("async", False):
