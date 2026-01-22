@@ -3036,11 +3036,32 @@ class SOAPConnector(object):
         FileSearch = self.get_data_type("ns11:FileSearch")
         FileSearchBasic = self.get_data_type("ns5:FileSearchBasic")
         SearchMultiSelectField = self.get_data_type("ns0:SearchMultiSelectField")
-        search_record_basic = FileSearchBasic(
-            folder=SearchMultiSelectField(
-                searchValue=[RecordRef(internalId=folder_internal_id)], operator="anyOf"
+        SearchDateField = self.get_data_type("ns0:SearchDateField")
+
+        
+
+        search_preferences = SearchPreferences(bodyFieldsOnly=False)
+        cut_date = kwargs.get("cut_date")
+        end_date = kwargs.get("end_date")
+        if cut_date or end_date:
+            assert cut_date and end_date, "cut_date and end_date are required!!!"
+            begin = datetime.strptime(cut_date, "%Y-%m-%dT%H:%M:%S%z")
+            end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S%z")
+            search_record_basic = FileSearchBasic(
+                folder=SearchMultiSelectField(
+                    searchValue=[RecordRef(internalId=folder_internal_id)], operator="anyOf"
+                ),
+                modified=SearchDateField(
+                    searchValue=begin, searchValue2=end, operator="within"
+                ),
             )
-        )
+        else:
+            search_record_basic = FileSearchBasic(
+                folder=SearchMultiSelectField(
+                    searchValue=[RecordRef(internalId=folder_internal_id)], operator="anyOf"
+                )
+            )
+        
         search_record = FileSearch(basic=search_record_basic)
         search_preferences = SearchPreferences(bodyFieldsOnly=False)
         return self.search(search_record, search_preferences=search_preferences)
