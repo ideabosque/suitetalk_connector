@@ -1425,6 +1425,7 @@ class SOAPConnector(object):
             "estimate",
             "opportunity",
             "returnAuthorization",
+            "invoice",
         ]:
             ext_customer_id = transaction.pop("extCustomerId", None)
             ns_customer_id = transaction.pop("nsCustomerId", None)
