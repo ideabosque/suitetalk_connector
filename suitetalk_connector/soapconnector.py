@@ -452,6 +452,11 @@ class SOAPConnector(object):
             record_type, search_data_type, field, value, operator=operator
         )
         if records:
+            if len(records) > 1:
+                # exclude children record
+                for record in records:
+                    if not hasattr(record, "parent") or record.parent is None:
+                        return record
             return records[0]
         return None
 
